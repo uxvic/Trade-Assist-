@@ -1,0 +1,42 @@
+# Local development stack for Trade-Assist.
+#   docker compose up
+# Brings up Postgres (with TimescaleDB + pgvector), Redis, and the backend API.
+services:
+  db:
+    # timescaledb-ha bundles TimescaleDB + pgvector on top of Postgres 16.
+    image: timescale/timescaledb-ha:pg16
+    environment:
+      POSTGRES_USER: trade
+      POSTGRES_PASSWORD: trade
+      POSTGRES_DB: tradeassist
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trade -d tradeassist"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://trade:trade@db:5432/tradeassist
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  db_data:
