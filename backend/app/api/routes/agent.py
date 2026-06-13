@@ -16,25 +16,17 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import ChatRequest
-from app.config import get_settings
-from app.runtime import get_agent_service
+from app.runtime import ai_configured, get_agent_service
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 
-def _provider_configured(settings) -> bool:
-    if settings.agent_provider == "claude":
-        return bool(settings.anthropic_api_key)
-    return True  # litellm reads its own env (OpenAI key, Ollama host, etc.)
-
-
 @router.post("/chat")
 async def chat(req: ChatRequest) -> StreamingResponse:
-    settings = get_settings()
-    if not _provider_configured(settings):
+    if not ai_configured():
         raise HTTPException(
             status_code=503,
-            detail="No LLM provider configured. Set ANTHROPIC_API_KEY (or switch agent_provider).",
+            detail="No AI key set yet. Add one on the Settings page to wake up your coach.",
         )
 
     service = get_agent_service()

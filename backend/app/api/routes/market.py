@@ -9,6 +9,21 @@ from app.runtime import get_data_provider
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
+# Friendly, beginner-facing crypto universe for v1 (Binance symbols).
+SUPPORTED_SYMBOLS = [
+    {"symbol": "BTCUSDT", "name": "Bitcoin", "ticker": "BTC"},
+    {"symbol": "ETHUSDT", "name": "Ethereum", "ticker": "ETH"},
+    {"symbol": "SOLUSDT", "name": "Solana", "ticker": "SOL"},
+    {"symbol": "BNBUSDT", "name": "BNB", "ticker": "BNB"},
+    {"symbol": "XRPUSDT", "name": "XRP", "ticker": "XRP"},
+    {"symbol": "DOGEUSDT", "name": "Dogecoin", "ticker": "DOGE"},
+]
+
+
+@router.get("/symbols")
+async def symbols() -> dict:
+    return {"symbols": SUPPORTED_SYMBOLS}
+
 
 @router.get("/quote/{symbol}")
 async def quote(symbol: str) -> dict:

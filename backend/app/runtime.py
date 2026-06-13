@@ -17,11 +17,41 @@ from app.config import get_settings
 from app.data.providers.base import MarketDataProvider
 from app.data.providers.crypto import BinanceProvider
 
+# Runtime AI credentials set from the Settings page (in-memory only, never
+# persisted or logged). Lets a non-technical user enable the coach without
+# editing .env. Falls back to environment settings when unset.
+_ai_override: dict[str, str | None] = {"provider": None, "api_key": None}
+
+
+def set_ai_credentials(provider: str | None, api_key: str | None) -> None:
+    _ai_override["provider"] = provider
+    _ai_override["api_key"] = api_key
+
+
+def _active_provider() -> str:
+    return _ai_override["provider"] or get_settings().agent_provider
+
+
+def ai_configured() -> bool:
+    """Whether the coach has what it needs to run."""
+    provider = _active_provider()
+    if provider == "claude":
+        return bool(_ai_override["api_key"] or get_settings().anthropic_api_key)
+    # litellm reads its own env (OpenAI key, Ollama host, etc.)
+    return True
+
 
 @lru_cache
 def get_broker() -> PaperBroker:
     settings = get_settings()
     return PaperBroker(starting_cash=str(settings.paper_starting_cash))
+
+
+def reset_broker() -> PaperBroker:
+    """Replace the demo account with a fresh one."""
+    get_broker.cache_clear()
+    get_tool_registry.cache_clear()
+    return get_broker()
 
 
 @lru_cache
@@ -37,8 +67,8 @@ def get_tool_registry() -> ToolRegistry:
 def get_agent_service() -> AgentService:
     settings = get_settings()
     return build_agent_service(
-        provider=settings.agent_provider,
+        provider=_active_provider(),
         registry=get_tool_registry(),
         model=settings.agent_model,
-        api_key=settings.anthropic_api_key,
+        api_key=_ai_override["api_key"] or settings.anthropic_api_key,
     )

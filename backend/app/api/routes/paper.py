@@ -20,9 +20,23 @@ from app.api.schemas import (
 )
 from app.domain.enums import OrderSide, OrderType
 from app.domain.trading import Order, OrderRequest
-from app.runtime import get_broker
+from app.runtime import get_broker, get_data_provider, reset_broker
 
 router = APIRouter(prefix="/api/paper", tags=["paper-trading"])
+
+
+async def _refresh_price(symbol: str) -> None:
+    """Pull the latest live price so paper orders fill at the real market price.
+
+    Network/upstream errors are swallowed: if no price is available the engine
+    will reject the order with a friendly "no market data" message, which the UI
+    surfaces — far better than a 500.
+    """
+    try:
+        quote = await get_data_provider().get_quote(symbol)
+        get_broker().update_price(symbol, quote.last)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _order_to_response(order: Order) -> OrderResponse:
@@ -48,6 +62,8 @@ async def update_price(update: PriceUpdate) -> dict:
 
 @router.post("/orders", response_model=OrderResponse)
 async def place_order(req: PlaceOrderRequest) -> OrderResponse:
+    # Price the order off the live market before it touches the engine.
+    await _refresh_price(req.symbol)
     order = await get_broker().place_order(
         OrderRequest(
             symbol=req.symbol,
@@ -81,6 +97,10 @@ async def account() -> AccountResponse:
 
 @router.get("/positions", response_model=list[PositionResponse])
 async def positions() -> list[PositionResponse]:
+    broker = get_broker()
+    # Mark open positions to the latest live price so P&L is current.
+    for pos in await broker.get_positions():
+        await _refresh_price(pos.symbol)
     return [
         PositionResponse(
             symbol=p.symbol,
@@ -90,5 +110,13 @@ async def positions() -> list[PositionResponse]:
             unrealized_pnl=p.unrealized_pnl,
             realized_pnl=p.realized_pnl,
         )
-        for p in await get_broker().get_positions()
+        for p in await broker.get_positions()
     ]
+
+
+@router.post("/reset")
+async def reset() -> dict:
+    """Start over with a fresh practice account."""
+    broker = reset_broker()
+    account = await broker.get_account()
+    return {"status": "reset", "cash": str(account.cash)}

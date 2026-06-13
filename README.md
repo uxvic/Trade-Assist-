@@ -17,9 +17,10 @@ There are two layers:
 
 ## Status
 
-Early build. The **paper-trading engine** (the core seam) is implemented and
-fully tested; the FastAPI backend, agent layer, data providers, and data model
-are scaffolded and runnable. See the phased roadmap below.
+Early build, but already a real, usable app: a polished **web UI** (onboarding,
+home, a live trade desk with charts + plain-language order ticket, an AI coach
+chat, and starter lessons) on top of a fully-tested **paper-trading engine**,
+the agent layer, and live crypto data. See the phased roadmap below.
 
 ## Architecture at a glance
 
@@ -44,36 +45,28 @@ Key seams (designed so the future never forces a rewrite):
 
 ## Quickstart
 
-### Backend (local)
+Two commands. You need [`uv`](https://docs.astral.sh/uv/) and Node 18+ installed.
 
 ```bash
-cd backend
-uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
-cp ../.env.example ../.env        # fill in ANTHROPIC_API_KEY to enable the agent
-uvicorn app.main:app --reload     # http://localhost:8000/docs
+./scripts/setup.sh     # one time: installs backend + frontend deps
+./scripts/dev.sh       # starts everything
 ```
 
-Run the engine tests (no third-party deps needed):
+Then open **http://localhost:3000**. That's the whole app — the frontend proxies
+the API, so it's the only URL you need. Press Ctrl-C in that terminal to stop.
+
+To enable the AI coach, open **Settings** in the app and paste an Anthropic
+(Claude) API key — no file editing required. Everything else (live charts,
+practice trading, lessons) works without a key.
+
+### Useful extras
 
 ```bash
-python tests/test_paper_broker.py     # or: pytest
-```
+# Backend engine tests (no third-party deps needed)
+cd backend && python tests/test_paper_broker.py     # or: pytest
 
-### Full stack (Docker)
-
-```bash
-cp .env.example .env
-docker compose up                 # Postgres+Timescale+pgvector, Redis, backend
-```
-
-### Try the paper loop without the UI
-
-```bash
-# Feed a price, place a trade, inspect the account
-curl -X POST localhost:8000/api/paper/price  -H 'content-type: application/json' -d '{"symbol":"BTCUSDT","price":"50000"}'
-curl -X POST localhost:8000/api/paper/orders -H 'content-type: application/json' -d '{"symbol":"BTCUSDT","side":"buy","qty":"0.1"}'
-curl localhost:8000/api/paper/account
+# Full stack via Docker (Postgres+Timescale+pgvector, Redis, backend)
+cp .env.example .env && docker compose up
 ```
 
 ## Safety model

@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import agent, health, market, paper
+from app.api.routes import settings as settings_routes
 from app.config import get_settings
 
 settings = get_settings()
@@ -27,6 +28,7 @@ app.include_router(health.router)
 app.include_router(market.router)
 app.include_router(paper.router)
 app.include_router(agent.router)
+app.include_router(settings_routes.router)
 
 
 @app.get("/", tags=["health"])
