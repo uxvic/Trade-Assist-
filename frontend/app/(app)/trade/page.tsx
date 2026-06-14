@@ -1,6 +1,7 @@
 "use client";
 
 import { CoachPanel } from "@/components/CoachPanel";
+import { CopilotSession } from "@/components/coach/CopilotSession";
 import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
@@ -16,7 +17,19 @@ import { useAppStore } from "@/lib/store";
 export default function TradePage() {
   const instrument = useAppStore((s) => s.instrument);
   const timeframe = useAppStore((s) => s.timeframe);
+  const coachMode = useAppStore((s) => s.coachIntensity);
+  const copilotStyle = useAppStore((s) => s.copilotStyle);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
+
+  // Co-pilot "takeover session" reshapes the whole desk.
+  if (coachMode === "copilot" && copilotStyle === "session") {
+    return (
+      <>
+        <GuidedTour />
+        <CopilotSession />
+      </>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">

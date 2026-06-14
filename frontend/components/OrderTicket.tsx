@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePlaceOrder, useQuote } from "@/lib/api";
 import { fmtNumber, fmtPrice, fmtUSD } from "@/lib/format";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const CHIPS = [25, 100, 500];
@@ -26,6 +27,19 @@ export function OrderTicket({
   const [amount, setAmount] = useState("100");
   const { data: quote } = useQuote(assetClass, symbol);
   const place = usePlaceOrder();
+
+  const suggested = useAppStore((s) => s.suggestedTrade);
+  const clearSuggested = useAppStore((s) => s.setSuggestedTrade);
+  const suggestionForThis = suggested && (suggested.symbol ?? symbol) === symbol ? suggested : null;
+
+  // When the coach sends an idea (Suggestions mode), pre-fill the ticket.
+  useEffect(() => {
+    if (suggestionForThis) {
+      if (suggestionForThis.side) setSide(suggestionForThis.side);
+      if (suggestionForThis.notional) setAmount(String(suggestionForThis.notional));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggested, symbol]);
 
   const price = quote ? Number(quote.last) : null;
   const usd = Number(amount) || 0;
@@ -59,6 +73,26 @@ export function OrderTicket({
 
   return (
     <div className="flex flex-col gap-4">
+      {suggestionForThis && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-2.5 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-primary">Coach's idea</span>
+            <button onClick={() => clearSuggested(null)} className="text-muted hover:text-fg">
+              Clear
+            </button>
+          </div>
+          {suggestionForThis.rationale && (
+            <div className="mt-1 leading-relaxed text-muted">{suggestionForThis.rationale}</div>
+          )}
+          {(suggestionForThis.stop || suggestionForThis.target) && (
+            <div className="mt-1.5 flex gap-3 text-muted">
+              {suggestionForThis.stop && <span>Stop {fmtPrice(suggestionForThis.stop)}</span>}
+              {suggestionForThis.target && <span>Target {fmtPrice(suggestionForThis.target)}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Buy / Sell toggle */}
       <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-2/40 p-1">
         <button

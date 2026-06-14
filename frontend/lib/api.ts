@@ -183,6 +183,8 @@ export interface PlaceOrderInput {
   type?: "market" | "limit" | "stop";
   notional?: number;
   qty?: number;
+  limit_price?: number;
+  stop_price?: number;
 }
 
 export function usePlaceOrder() {

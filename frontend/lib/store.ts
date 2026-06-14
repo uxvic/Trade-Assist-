@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import type { TradeProposal } from "./api";
+
 export interface Instrument {
   symbol: string;
   name: string;
@@ -11,6 +13,7 @@ export interface Instrument {
 }
 
 export type CoachIntensity = "reads" | "suggestions" | "copilot";
+export type CopilotStyle = "panel" | "session";
 
 const DEFAULT_INSTRUMENT: Instrument = {
   symbol: "BTCUSDT",
@@ -27,6 +30,8 @@ interface AppState {
   instrument: Instrument;
   timeframe: string;
   coachIntensity: CoachIntensity;
+  copilotStyle: CopilotStyle;
+  suggestedTrade: TradeProposal | null;
   tourSeen: boolean;
   completedLessons: string[];
 
@@ -36,6 +41,8 @@ interface AppState {
   setInstrument: (instrument: Instrument) => void;
   setTimeframe: (timeframe: string) => void;
   setCoachIntensity: (intensity: CoachIntensity) => void;
+  setCopilotStyle: (style: CopilotStyle) => void;
+  setSuggestedTrade: (trade: TradeProposal | null) => void;
   setTourSeen: (seen: boolean) => void;
   completeLesson: (id: string) => void;
 }
@@ -50,6 +57,8 @@ export const useAppStore = create<AppState>()(
       instrument: DEFAULT_INSTRUMENT,
       timeframe: "1m",
       coachIntensity: "reads",
+      copilotStyle: "panel",
+      suggestedTrade: null,
       tourSeen: false,
       completedLessons: [],
 
@@ -57,9 +66,11 @@ export const useAppStore = create<AppState>()(
       completeOnboarding: (name, level) =>
         set({ onboarded: true, name: name.trim() || "there", ...(level ? { level } : {}) }),
       resetOnboarding: () => set({ onboarded: false }),
-      setInstrument: (instrument) => set({ instrument }),
+      setInstrument: (instrument) => set({ instrument, suggestedTrade: null }),
       setTimeframe: (timeframe) => set({ timeframe }),
       setCoachIntensity: (coachIntensity) => set({ coachIntensity }),
+      setCopilotStyle: (copilotStyle) => set({ copilotStyle }),
+      setSuggestedTrade: (suggestedTrade) => set({ suggestedTrade }),
       setTourSeen: (tourSeen) => set({ tourSeen }),
       completeLesson: (id) =>
         set((s) =>
@@ -71,6 +82,19 @@ export const useAppStore = create<AppState>()(
     {
       name: "trade-assist",
       version: 2,
+      // Don't persist transient runtime state (a stale suggestion shouldn't
+      // re-appear on reload).
+      partialize: (s) => ({
+        onboarded: s.onboarded,
+        name: s.name,
+        level: s.level,
+        instrument: s.instrument,
+        timeframe: s.timeframe,
+        coachIntensity: s.coachIntensity,
+        copilotStyle: s.copilotStyle,
+        tourSeen: s.tourSeen,
+        completedLessons: s.completedLessons,
+      }),
       onRehydrateStorage: () => (state) => state?.setHydrated(),
     }
   )
