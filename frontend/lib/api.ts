@@ -257,6 +257,69 @@ export function useCompare() {
 }
 
 // ---------------------------------------------------------------------------
+// Live bot console (continuously-running trader)
+// ---------------------------------------------------------------------------
+export interface BotNote {
+  ts: number;
+  kind: string; // "analysis" | "watch" | "signal" | "enter" | "exit" | "ai"
+  text: string;
+}
+
+export interface BotPosition {
+  symbol: string;
+  qty: number;
+  avg_cost: number;
+  market_price: number;
+  unrealized_pnl: number;
+  entry: number | null;
+  stop: number | null;
+  target: number | null;
+  opened_at: number | null;
+}
+
+export interface BotCall {
+  trend: TrendInfo;
+  signal: {
+    state: string;
+    reason: string;
+    level: StrategyLevelInfo | null;
+    confirmations: Record<string, boolean>;
+  };
+  proposed_trade: ProposedTradeInfo | null;
+  levels: StrategyLevelInfo[];
+  current_price: number;
+  as_of: number;
+}
+
+export interface BotFeed {
+  symbol: string;
+  asset_class: string;
+  call: BotCall | null;
+  notes: BotNote[];
+  position: BotPosition | null;
+}
+
+/** The live bot console polls this — cheap, deterministic, "always running". */
+export function useBotFeed(assetClass: string, symbol: string | undefined) {
+  return useQuery({
+    queryKey: ["bot-feed", assetClass, symbol],
+    queryFn: () =>
+      http<BotFeed>(`/api/strategy/bot/feed?asset_class=${assetClass}&symbol=${symbol}`),
+    enabled: !!symbol,
+    refetchInterval: 15000,
+    retry: 1,
+  });
+}
+
+/** On-demand AI colour commentary on the bot's read (costs a token call). */
+export async function fetchBotCommentary(
+  assetClass: string,
+  symbol: string
+): Promise<{ commentary: string | null; available: boolean }> {
+  return http(`/api/strategy/bot/commentary?asset_class=${assetClass}&symbol=${symbol}`);
+}
+
+// ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
 export interface PlaceOrderInput {

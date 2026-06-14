@@ -19,6 +19,20 @@ export interface StrategyLevel {
   source_tf: string;
 }
 
+/** Declutter: keep the strongest ~n levels near the current price. */
+export function topLevels<T extends { price: number; strength: number }>(
+  levels: T[],
+  price: number,
+  n = 6
+): T[] {
+  if (!levels.length) return [];
+  if (!price) return [...levels].sort((a, b) => b.strength - a.strength).slice(0, n);
+  const band = price * 0.08; // within ~8% of price
+  const near = levels.filter((l) => Math.abs(l.price - price) <= band);
+  const pool = near.length >= 3 ? near : levels;
+  return [...pool].sort((a, b) => b.strength - a.strength).slice(0, n);
+}
+
 export interface ChartHandle {
   drawCoachLevels: (levels: { entry?: number; stop?: number; target?: number }) => void;
   clearCoach: () => void;
@@ -33,6 +47,8 @@ interface Props {
   assetClass: string;
   symbol: string;
   timeframe: string;
+  /** Strip the toolbars + interactions — for the bot's compact "mini" chart. */
+  minimal?: boolean;
   onPointClick?: (p: {
     clientX: number;
     clientY: number;
@@ -104,7 +120,7 @@ const TF_COLORS: Record<string, string> = {
 };
 
 export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
-  { assetClass, symbol, timeframe, onPointClick },
+  { assetClass, symbol, timeframe, minimal = false, onPointClick },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -132,7 +148,7 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
       const chart = kc.init(containerRef.current);
       if (!chart) return;
       chart.setStyles(STYLES as never);
-      chart.createIndicator("VOL");
+      if (!minimal) chart.createIndicator("VOL");
       chart.subscribeAction(kc.ActionType.OnCrosshairChange, (c: unknown) => {
         const cross = c as { kLineData?: KLineData };
         if (cross?.kLineData) {
@@ -158,6 +174,7 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
       }
       chartRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- load candles -----------------------------------------------------
@@ -326,6 +343,19 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
       /* ignore */
     }
     onPointClick({ clientX: e.clientX, clientY: e.clientY, time, price });
+  }
+
+  if (minimal) {
+    return (
+      <div className="relative h-full w-full">
+        <div ref={containerRef} className="h-full w-full" />
+        {isError && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-muted">
+            No live feed.
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

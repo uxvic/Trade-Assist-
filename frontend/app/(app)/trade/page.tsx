@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { KLineChart, type ChartHandle } from "@/components/chart/KLineChart";
+import { type ChartHandle, KLineChart, topLevels } from "@/components/chart/KLineChart";
 import { ChartCoachPopover, type PointContext } from "@/components/coach/ChartCoachPopover";
 import { CoachDock } from "@/components/coach/CoachDock";
 import { SlashAskBar } from "@/components/coach/SlashAskBar";
@@ -12,7 +12,7 @@ import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PairTabs } from "@/components/PairTabs";
 import { PositionsList } from "@/components/PositionsList";
-import { MarketVsBotPanel } from "@/components/strategy/MarketVsBotPanel";
+import { BotConsole } from "@/components/strategy/BotConsole";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
 import { useQuote, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
@@ -46,13 +46,13 @@ export default function TradePage() {
     }
   }, [suggested, instrument.symbol]);
 
-  // Draw the strategy's S&R levels (color by timeframe) + the bot's proposed trade.
+  // Draw the strategy's S&R levels (decluttered to the strongest near price) + the bot's plan.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     const a = strategy.data;
     if (a && a.symbol === instrument.symbol) {
-      chart.drawLevels(a.levels);
+      chart.drawLevels(topLevels(a.levels, a.current_price, 6));
       chart.drawProposedTrade(a.signal.state === "buy" ? a.proposed_trade : null);
     } else {
       chart.clearStrategy();
@@ -83,10 +83,11 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Body: chart (hero) + slim rail */}
+      {/* Body: split chart/bot column (hero) + slim rail */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="relative flex-1">
+          {/* Top ~60%: your chart */}
+          <div className="relative min-h-0 flex-[3]">
             <KLineChart
               ref={chartRef}
               assetClass={instrument.assetClass}
@@ -112,24 +113,13 @@ export default function TradePage() {
             </div>
           </div>
 
-          {/* Positions strip */}
-          <div className="border-t border-border">
-            <button
-              onClick={() => setShowPositions((v) => !v)}
-              className="flex w-full items-center justify-between px-4 py-2 text-sm font-semibold text-fg"
-            >
-              What you own
-              {showPositions ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-            </button>
-            {showPositions && (
-              <div className="max-h-44 overflow-y-auto">
-                <PositionsList />
-              </div>
-            )}
+          {/* Bottom ~40%: the bot, live */}
+          <div className="min-h-0 flex-[2] border-t border-border">
+            <BotConsole />
           </div>
         </div>
 
-        {/* Right rail: order ticket + coach */}
+        {/* Right rail: order ticket + positions + coach */}
         <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border">
           <div className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-fg">Place a practice trade</h3>
@@ -140,7 +130,23 @@ export default function TradePage() {
               assetClass={instrument.assetClass}
             />
           </div>
-          <MarketVsBotPanel />
+
+          {/* What you own */}
+          <div className="border-t border-border">
+            <button
+              onClick={() => setShowPositions((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-2 text-sm font-semibold text-fg"
+            >
+              What you own
+              {showPositions ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+            {showPositions && (
+              <div className="max-h-52 overflow-y-auto">
+                <PositionsList />
+              </div>
+            )}
+          </div>
+
           <CoachDock />
         </div>
       </div>
