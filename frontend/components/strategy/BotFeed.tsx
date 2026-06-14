@@ -29,12 +29,12 @@ export function BotFeed({ notes }: { notes: BotNote[] }) {
 
   return (
     <div className="h-full space-y-1.5 overflow-y-auto pr-1">
-      {notes.map((n, i) => {
+      {notes.map((n) => {
         const meta = KIND[n.kind] ?? KIND.analysis;
         const Icon = meta.icon;
         return (
           <div
-            key={`${n.ts}-${i}-${n.kind}`}
+            key={`${n.ts}-${n.kind}-${n.text}`}
             className={cn(
               "flex animate-fade-in gap-2 rounded-lg border border-border/60 bg-surface-2/30 px-2.5 py-2",
               n.kind === "ai" && "border-primary/30 bg-primary/5"
