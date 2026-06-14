@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 
@@ -10,25 +12,22 @@ import { useCopilot } from "./useCopilot";
 
 export function CopilotPanel() {
   const co = useCopilot();
-  const setStyle = useAppStore((s) => s.setCopilotStyle);
   const setSuggested = useAppStore((s) => s.setSuggestedTrade);
+
+  // Surface any proposal to the chart (draws entry/stop/target) and ticket.
+  useEffect(() => {
+    if (co.proposal?.side) setSuggested(co.proposal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [co.proposal]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted">An expert watching with you. You approve every move.</p>
-        <button
-          onClick={() => setStyle("session")}
-          className="shrink-0 text-xs text-primary hover:underline"
-        >
-          Session view →
-        </button>
-      </div>
+      <p className="text-xs text-muted">An expert watching with you. You approve every move.</p>
 
       <div className="flex items-center gap-2">
         <WatchToggle watching={co.watching} onToggle={() => co.setWatching(!co.watching)} />
         <Button size="sm" className="flex-1" disabled={co.busy} onClick={co.scan}>
-          {co.busy ? "Scanning…" : `Scan ${co.instrument.ticker} for a setup`}
+          {co.busy ? "Scanning…" : `Scan ${co.instrument.ticker}`}
         </Button>
       </div>
 

@@ -51,7 +51,8 @@ INTENSITY_GUIDANCE = {
         "COACHING MODE — CO-PILOT. Propose a complete trade for the user to approve. When you "
         "have a concrete idea, CALL the propose_trade tool with side, dollar size, entry, stop, "
         "target, leverage and a short rationale, plus the risk. The user approves with one tap — "
-        "you never execute on your own. Still explain your reasoning in the message."
+        "you never execute on your own. Keep your written reply to AT MOST 2-3 short sentences — "
+        "the numbers go in the propose_trade card, not a long write-up. Never output a long list."
     ),
 }
 
@@ -66,6 +67,7 @@ def observe_prompt(name: str, symbol: str, asset_class: str, timeframe: str) -> 
     return (
         f"Give me your live read on {name} ({symbol}, {asset_class}) on the {timeframe} chart. "
         "Check the latest price and recent candles, glance at my open positions, then give a "
-        "concise, practical expert read: what's happening, the key levels, and what a trader "
-        "might consider here — with stop, size and risk. Keep it tight."
+        "concise, practical expert read: what's happening, the key level(s), and what a trader "
+        "might consider. Keep it to 2-3 short sentences. If you propose a trade, put the numbers "
+        "in the propose_trade card rather than a long write-up."
     )

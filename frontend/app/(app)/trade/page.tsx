@@ -1,15 +1,17 @@
 "use client";
 
-import { CoachPanel } from "@/components/CoachPanel";
-import { CopilotSession } from "@/components/coach/CopilotSession";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import { KLineChart, type ChartHandle } from "@/components/chart/KLineChart";
+import { ChartCoachPopover, type PointContext } from "@/components/coach/ChartCoachPopover";
+import { CoachDock } from "@/components/coach/CoachDock";
+import { SlashAskBar } from "@/components/coach/SlashAskBar";
 import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
-import { PriceChart } from "@/components/PriceChart";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useQuote } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
@@ -17,83 +19,110 @@ import { useAppStore } from "@/lib/store";
 export default function TradePage() {
   const instrument = useAppStore((s) => s.instrument);
   const timeframe = useAppStore((s) => s.timeframe);
-  const coachMode = useAppStore((s) => s.coachIntensity);
-  const copilotStyle = useAppStore((s) => s.copilotStyle);
+  const suggested = useAppStore((s) => s.suggestedTrade);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
 
-  // Co-pilot "takeover session" reshapes the whole desk.
-  if (coachMode === "copilot" && copilotStyle === "session") {
-    return (
-      <>
-        <GuidedTour />
-        <CopilotSession />
-      </>
-    );
-  }
+  const chartRef = useRef<ChartHandle>(null);
+  const [popover, setPopover] = useState<{ anchor: { x: number; y: number }; ctx: PointContext } | null>(
+    null
+  );
+  const [showPositions, setShowPositions] = useState(true);
+
+  // The coach draws its thinking (entry/stop/target) right on the chart.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    if (suggested && (suggested.symbol ?? instrument.symbol) === instrument.symbol) {
+      chart.drawCoachLevels({
+        entry: suggested.entry,
+        stop: suggested.stop,
+        target: suggested.target,
+      });
+    } else {
+      chart.clearCoach();
+    }
+  }, [suggested, instrument.symbol]);
+
+  const ctxBase = {
+    symbol: instrument.symbol,
+    assetClass: instrument.assetClass,
+    name: instrument.name,
+    timeframe,
+  };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="flex h-full flex-col">
       <GuidedTour />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <InstrumentPicker />
-        <TimeframeSelector />
+        <div className="flex items-center gap-3">
+          {quote.data && (
+            <span className="text-sm font-semibold tabular text-fg">{fmtPrice(quote.data.last)}</span>
+          )}
+          <TimeframeSelector />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Chart + positions */}
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <Card>
-            <CardContent className="pb-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <div className="text-base font-semibold text-fg">{instrument.name}</div>
-                  <div className="text-xs text-muted">
-                    {instrument.ticker} · {timeframe} candles
-                  </div>
-                </div>
-                <div className="text-right">
-                  {quote.data ? (
-                    <div className="text-xl font-semibold tabular text-fg">
-                      {fmtPrice(quote.data.last)}
-                    </div>
-                  ) : (
-                    <Skeleton className="h-6 w-20" />
-                  )}
-                  <div className="text-xs text-muted">live price</div>
-                </div>
-              </div>
-              <div className="h-[360px]">
-                <PriceChart
-                  assetClass={instrument.assetClass}
-                  symbol={instrument.symbol}
-                  timeframe={timeframe}
-                />
-              </div>
-            </CardContent>
-          </Card>
+      {/* Body: chart (hero) + slim rail */}
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="relative flex-1">
+            <KLineChart
+              ref={chartRef}
+              assetClass={instrument.assetClass}
+              symbol={instrument.symbol}
+              timeframe={timeframe}
+              onPointClick={(p) =>
+                setPopover({
+                  anchor: { x: p.clientX, y: p.clientY },
+                  ctx: { ...ctxBase, time: p.time, price: p.price },
+                })
+              }
+            />
+            <SlashAskBar chartRef={chartRef} ctx={ctxBase} />
+            {popover && (
+              <ChartCoachPopover
+                anchor={popover.anchor}
+                ctx={popover.ctx}
+                onClose={() => setPopover(null)}
+              />
+            )}
+            <div className="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 text-[11px] text-muted">
+              Double-click the chart to ask the coach · press <kbd className="rounded bg-surface-2 px-1">/</kbd> to ask
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="px-0 py-2">
-              <h3 className="px-4 pb-1 pt-1 text-sm font-semibold text-fg">What you own</h3>
-              <PositionsList />
-            </CardContent>
-          </Card>
+          {/* Positions strip */}
+          <div className="border-t border-border">
+            <button
+              onClick={() => setShowPositions((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-2 text-sm font-semibold text-fg"
+            >
+              What you own
+              {showPositions ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+            {showPositions && (
+              <div className="max-h-44 overflow-y-auto">
+                <PositionsList />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Order ticket + coach */}
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardContent>
-              <h3 className="mb-4 text-sm font-semibold text-fg">Place a practice trade</h3>
-              <OrderTicket
-                symbol={instrument.symbol}
-                name={instrument.name}
-                ticker={instrument.ticker}
-                assetClass={instrument.assetClass}
-              />
-            </CardContent>
-          </Card>
-          <CoachPanel />
+        {/* Right rail: order ticket + coach */}
+        <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border">
+          <div className="p-4">
+            <h3 className="mb-3 text-sm font-semibold text-fg">Place a practice trade</h3>
+            <OrderTicket
+              symbol={instrument.symbol}
+              name={instrument.name}
+              ticker={instrument.ticker}
+              assetClass={instrument.assetClass}
+            />
+          </div>
+          <CoachDock />
         </div>
       </div>
     </div>
