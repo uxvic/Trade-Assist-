@@ -93,6 +93,39 @@ def second_opinion_message(symbol: str, asset_class: str, analysis) -> str:
     )
 
 
+BOT_COMMENTARY_SYSTEM = """\
+You are an expert trader giving live colour commentary on a rules-bot's read, for \
+a learner watching over its shoulder. You are handed the bot's current analysis \
+and its most recent notes. In 2-3 short, vivid sentences, voice the trader's \
+intuition behind the checklist: what the bot is seeing and why it's acting (or \
+holding fire). Be honest that this is disciplined rule-following, not a \
+prediction. No preamble, no bullet lists — just the commentary."""
+
+
+def bot_commentary_message(symbol: str, asset_class: str, analysis, notes: list[dict]) -> str:
+    """Feed the deterministic read + recent notes to the AI for a richer take."""
+    t = analysis.trend
+    levels = ", ".join(
+        f"{lv.source_tf} {lv.type} {lv.price:.5g}" for lv in analysis.levels[:6]
+    ) or "none detected"
+    pt = analysis.proposed_trade
+    plan = (
+        f"BUY entry {pt.entry:.5g}, stop {pt.stop:.5g}, target {pt.target:.5g} (1:3)"
+        if pt
+        else f"no trade ({analysis.signal.reason})"
+    )
+    recent = "\n".join(f"- {n['text']}" for n in notes[:5]) or "- (no notes yet)"
+    return (
+        f"Bot's live read on {symbol} ({asset_class}):\n"
+        f"- Trend: {t.direction} (confidence {t.confidence:.0%}). {'; '.join(t.reasons)}\n"
+        f"- Key levels: {levels}\n"
+        f"- Current price: {analysis.current_price:.5g}\n"
+        f"- Bot's plan: {plan}\n"
+        f"Recent notes:\n{recent}\n\n"
+        "Give your live colour commentary (2-3 sentences)."
+    )
+
+
 def observe_prompt(name: str, symbol: str, asset_class: str, timeframe: str) -> str:
     """The synthetic prompt for a proactive 'read' of what the user is viewing."""
     return (

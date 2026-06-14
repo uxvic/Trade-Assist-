@@ -45,3 +45,27 @@ async def get_second_opinion(symbol: str, asset_class: str, analysis: Analysis) 
             break
 
     return {"market_read": read or text, "agrees_with_bot": agrees, "available": True}
+
+
+async def get_bot_commentary(
+    symbol: str, asset_class: str, analysis: Analysis, notes: list[dict]
+) -> dict:
+    """On-demand AI colour commentary on the bot's live read (token-gated)."""
+    from app.agent.prompts import BOT_COMMENTARY_SYSTEM, bot_commentary_message
+    from app.runtime import ai_configured, get_agent_service
+
+    if not ai_configured():
+        return {"commentary": None, "available": False}
+
+    service = get_agent_service(system=BOT_COMMENTARY_SYSTEM)
+    message = bot_commentary_message(symbol, asset_class, analysis, notes)
+
+    text = ""
+    try:
+        async for event in service.run_turn(message, None):
+            if event.type == "text":
+                text += event.data.get("text", "")
+    except Exception as exc:  # noqa: BLE001
+        return {"commentary": f"(coach unavailable: {exc})", "available": False}
+
+    return {"commentary": text.strip() or None, "available": True}

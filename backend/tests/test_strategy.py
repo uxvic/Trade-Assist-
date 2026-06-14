@@ -166,6 +166,50 @@ def test_pip_sizes():
     assert pips_to_price(10, "BTCUSDT", "crypto", 60000) == 0.0005 * 60000
 
 
+# --------------------------------------------------------------------------- #
+# Narration (the bot thinking out loud)
+# --------------------------------------------------------------------------- #
+from app.strategies.narrate import KIND_SIGNAL, narrate, signature  # noqa: E402
+from app.strategies.types import Analysis, ProposedTrade, Signal  # noqa: E402
+
+
+def _analysis(trend_dir: str, state: str, with_trade: bool = False) -> Analysis:
+    level = Level(
+        price=100.0, type="resistance", strength=0.7, source_tf="1d", touches=3, last_touch_ts=0
+    )
+    pt = (
+        ProposedTrade(
+            symbol="EURUSD", asset_class="forex", entry=100.5, stop=99.8,
+            target=102.6, risk_per_unit=0.7, rationale="x",
+        )
+        if with_trade
+        else None
+    )
+    return Analysis(
+        symbol="EURUSD", asset_class="forex", as_of=1000, current_price=100.5,
+        trend=Trend(trend_dir, 0.8, ["structure"]), levels=[level],
+        signal=Signal(state, "Watching the breakout", level, {}), proposed_trade=pt,
+    )
+
+
+def test_narrate_buy_has_signal_note():
+    notes = narrate(_analysis("up", "buy", with_trade=True))
+    assert any(n.kind == KIND_SIGNAL for n in notes)
+    assert any("BUY" in n.text for n in notes)
+
+
+def test_narrate_standing_down_when_downtrend():
+    notes = narrate(_analysis("down", "no_trade"))
+    assert notes[0].kind == "analysis"
+    assert "standing down" in notes[0].text.lower()
+
+
+def test_signature_changes_on_state_flip():
+    assert signature(_analysis("up", "no_trade")) != signature(_analysis("up", "buy", True))
+    # Stable when nothing changed → the feed won't spam.
+    assert signature(_analysis("up", "no_trade")) == signature(_analysis("up", "no_trade"))
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failures = 0
