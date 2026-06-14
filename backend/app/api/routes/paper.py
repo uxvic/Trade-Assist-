@@ -25,7 +25,12 @@ from app.runtime import get_broker, get_data_provider, reset_broker
 router = APIRouter(prefix="/api/paper", tags=["paper-trading"])
 
 
-async def _refresh_price(symbol: str) -> None:
+def _infer_asset_class(symbol: str) -> str:
+    """Crypto pairs in our universe quote in USDT; everything else is forex."""
+    return "crypto" if symbol.upper().endswith("USDT") else "forex"
+
+
+async def _refresh_price(symbol: str, asset_class: str) -> None:
     """Pull the latest live price so paper orders fill at the real market price.
 
     Network/upstream errors are swallowed: if no price is available the engine
@@ -33,7 +38,7 @@ async def _refresh_price(symbol: str) -> None:
     surfaces — far better than a 500.
     """
     try:
-        quote = await get_data_provider().get_quote(symbol)
+        quote = await get_data_provider(asset_class).get_quote(symbol)
         get_broker().update_price(symbol, quote.last)
     except Exception:  # noqa: BLE001
         pass
@@ -63,7 +68,7 @@ async def update_price(update: PriceUpdate) -> dict:
 @router.post("/orders", response_model=OrderResponse)
 async def place_order(req: PlaceOrderRequest) -> OrderResponse:
     # Price the order off the live market before it touches the engine.
-    await _refresh_price(req.symbol)
+    await _refresh_price(req.symbol, req.asset_class)
     order = await get_broker().place_order(
         OrderRequest(
             symbol=req.symbol,
@@ -100,7 +105,7 @@ async def positions() -> list[PositionResponse]:
     broker = get_broker()
     # Mark open positions to the latest live price so P&L is current.
     for pos in await broker.get_positions():
-        await _refresh_price(pos.symbol)
+        await _refresh_price(pos.symbol, _infer_asset_class(pos.symbol))
     return [
         PositionResponse(
             symbol=p.symbol,

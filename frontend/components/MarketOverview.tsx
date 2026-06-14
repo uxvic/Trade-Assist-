@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type SymbolInfo, useCandles, useQuote } from "@/lib/api";
 import { fmtPct, fmtUSD } from "@/lib/format";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 function Sparkline({ symbol }: { symbol: string }) {
-  const { data } = useCandles(symbol, "1m", 32);
+  const { data } = useCandles("crypto", symbol, "1m", 32);
   const closes = data?.candles.map((c) => c.close) ?? [];
   if (closes.length < 2) return <div className="h-8 w-24" />;
 
@@ -39,8 +40,9 @@ function Sparkline({ symbol }: { symbol: string }) {
 }
 
 function CoinRow({ info }: { info: SymbolInfo }) {
-  const { data: quote } = useQuote(info.symbol);
-  const { data: candles } = useCandles(info.symbol, "1m", 32);
+  const { data: quote } = useQuote("crypto", info.symbol);
+  const { data: candles } = useCandles("crypto", info.symbol, "1m", 32);
+  const setInstrument = useAppStore((s) => s.setInstrument);
 
   const closes = candles?.candles ?? [];
   const change =
@@ -51,6 +53,14 @@ function CoinRow({ info }: { info: SymbolInfo }) {
   return (
     <Link
       href="/trade"
+      onClick={() =>
+        setInstrument({
+          symbol: info.symbol,
+          name: info.name,
+          ticker: info.ticker,
+          assetClass: "crypto",
+        })
+      }
       className="flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2/60"
     >
       <div className="flex items-center gap-3">

@@ -6,15 +6,25 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePlaceOrder, useQuote } from "@/lib/api";
-import { fmtNumber, fmtUSD } from "@/lib/format";
+import { fmtNumber, fmtPrice, fmtUSD } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const CHIPS = [25, 100, 500];
 
-export function OrderTicket({ symbol, name, ticker }: { symbol: string; name: string; ticker: string }) {
+export function OrderTicket({
+  symbol,
+  name,
+  ticker,
+  assetClass,
+}: {
+  symbol: string;
+  name: string;
+  ticker: string;
+  assetClass: string;
+}) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("100");
-  const { data: quote } = useQuote(symbol);
+  const { data: quote } = useQuote(assetClass, symbol);
   const place = usePlaceOrder();
 
   const price = quote ? Number(quote.last) : null;
@@ -27,7 +37,7 @@ export function OrderTicket({ symbol, name, ticker }: { symbol: string; name: st
       return;
     }
     place.mutate(
-      { symbol, side, type: "market", notional: usd },
+      { symbol, asset_class: assetClass, side, type: "market", notional: usd },
       {
         onSuccess: (order) => {
           if (order.status === "filled") {
@@ -107,7 +117,7 @@ export function OrderTicket({ symbol, name, ticker }: { symbol: string; name: st
         </div>
         <div className="mt-1 flex items-center justify-between">
           <span className="text-muted">Current price</span>
-          <span className="tabular text-fg">{price !== null ? fmtUSD(price) : "—"}</span>
+          <span className="tabular text-fg">{price !== null ? fmtPrice(price) : "—"}</span>
         </div>
       </div>
 

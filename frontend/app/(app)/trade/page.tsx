@@ -1,42 +1,26 @@
 "use client";
 
+import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
 import { PriceChart } from "@/components/PriceChart";
+import { TimeframeSelector } from "@/components/TimeframeSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuote, useSymbols } from "@/lib/api";
-import { fmtUSD } from "@/lib/format";
+import { useQuote } from "@/lib/api";
+import { fmtPrice } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
-import { cn } from "@/lib/utils";
 
 export default function TradePage() {
-  const symbols = useSymbols();
-  const selected = useAppStore((s) => s.selectedSymbol);
-  const setSymbol = useAppStore((s) => s.setSymbol);
-
-  const list = symbols.data?.symbols ?? [];
-  const info = list.find((s) => s.symbol === selected) ?? list[0];
-  const quote = useQuote(info?.symbol);
+  const instrument = useAppStore((s) => s.instrument);
+  const timeframe = useAppStore((s) => s.timeframe);
+  const quote = useQuote(instrument.assetClass, instrument.symbol);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">
-      {/* Symbol picker */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        {list.map((s) => (
-          <button
-            key={s.symbol}
-            onClick={() => setSymbol(s.symbol)}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-              s.symbol === info?.symbol
-                ? "border-primary bg-primary/15 text-primary"
-                : "border-border text-muted hover:bg-surface-2/60 hover:text-fg"
-            )}
-          >
-            {s.name}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <InstrumentPicker />
+        <TimeframeSelector />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -46,13 +30,15 @@ export default function TradePage() {
             <CardContent className="pb-3">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <div className="text-base font-semibold text-fg">{info?.name ?? "—"}</div>
-                  <div className="text-xs text-muted">{info?.ticker} · 1-minute candles</div>
+                  <div className="text-base font-semibold text-fg">{instrument.name}</div>
+                  <div className="text-xs text-muted">
+                    {instrument.ticker} · {timeframe} candles
+                  </div>
                 </div>
                 <div className="text-right">
                   {quote.data ? (
                     <div className="text-xl font-semibold tabular text-fg">
-                      {fmtUSD(quote.data.last)}
+                      {fmtPrice(quote.data.last)}
                     </div>
                   ) : (
                     <Skeleton className="h-6 w-20" />
@@ -60,7 +46,13 @@ export default function TradePage() {
                   <div className="text-xs text-muted">live price</div>
                 </div>
               </div>
-              <div className="h-[360px]">{info && <PriceChart symbol={info.symbol} />}</div>
+              <div className="h-[360px]">
+                <PriceChart
+                  assetClass={instrument.assetClass}
+                  symbol={instrument.symbol}
+                  timeframe={timeframe}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -77,9 +69,12 @@ export default function TradePage() {
           <Card>
             <CardContent>
               <h3 className="mb-4 text-sm font-semibold text-fg">Place a practice trade</h3>
-              {info && (
-                <OrderTicket symbol={info.symbol} name={info.name} ticker={info.ticker} />
-              )}
+              <OrderTicket
+                symbol={instrument.symbol}
+                name={instrument.name}
+                ticker={instrument.ticker}
+                assetClass={instrument.assetClass}
+              />
             </CardContent>
           </Card>
         </div>

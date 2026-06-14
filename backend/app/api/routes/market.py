@@ -1,23 +1,27 @@
-"""Live market-data endpoints (crypto via the configured provider)."""
+"""Live market-data endpoints (asset-class aware: crypto, forex, …)."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.data.providers.base import Timeframe
+from app.data.providers.registry import ASSET_CLASSES, search_instruments
 from app.runtime import get_data_provider
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
-# Friendly, beginner-facing crypto universe for v1 (Binance symbols).
+# Friendly, beginner-facing crypto shortlist used by the Home market overview.
 SUPPORTED_SYMBOLS = [
     {"symbol": "BTCUSDT", "name": "Bitcoin", "ticker": "BTC"},
     {"symbol": "ETHUSDT", "name": "Ethereum", "ticker": "ETH"},
     {"symbol": "SOLUSDT", "name": "Solana", "ticker": "SOL"},
-    {"symbol": "BNBUSDT", "name": "BNB", "ticker": "BNB"},
     {"symbol": "XRPUSDT", "name": "XRP", "ticker": "XRP"},
-    {"symbol": "DOGEUSDT", "name": "Dogecoin", "ticker": "DOGE"},
 ]
+
+
+@router.get("/asset-classes")
+async def asset_classes() -> dict:
+    return {"asset_classes": ASSET_CLASSES}
 
 
 @router.get("/symbols")
@@ -25,10 +29,31 @@ async def symbols() -> dict:
     return {"symbols": SUPPORTED_SYMBOLS}
 
 
-@router.get("/quote/{symbol}")
-async def quote(symbol: str) -> dict:
+@router.get("/instruments")
+async def instruments(
+    asset_class: str = Query(default="crypto"),
+    search: str = Query(default=""),
+    limit: int = Query(default=30, ge=1, le=100),
+) -> dict:
     try:
-        q = await get_data_provider().get_quote(symbol)
+        rows = await search_instruments(asset_class, search, limit)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - upstream/network errors → 502
+        raise HTTPException(status_code=502, detail=f"Upstream data error: {exc}") from exc
+    return {
+        "asset_class": asset_class,
+        "instruments": [
+            {"symbol": r.symbol, "name": r.name, "ticker": r.ticker, "asset_class": r.asset_class}
+            for r in rows
+        ],
+    }
+
+
+@router.get("/quote/{symbol}")
+async def quote(symbol: str, asset_class: str = Query(default="crypto")) -> dict:
+    try:
+        q = await get_data_provider(asset_class).get_quote(symbol)
     except Exception as exc:  # noqa: BLE001 - upstream/network errors → 502
         raise HTTPException(status_code=502, detail=f"Upstream data error: {exc}") from exc
     return {
@@ -43,15 +68,17 @@ async def quote(symbol: str) -> dict:
 @router.get("/candles/{symbol}")
 async def candles(
     symbol: str,
+    asset_class: str = Query(default="crypto"),
     timeframe: Timeframe = Query(default=Timeframe.M1),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> dict:
     try:
-        rows = await get_data_provider().get_candles(symbol, timeframe, limit)
+        rows = await get_data_provider(asset_class).get_candles(symbol, timeframe, limit)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Upstream data error: {exc}") from exc
     return {
         "symbol": symbol,
+        "asset_class": asset_class,
         "timeframe": timeframe.value,
         "candles": [
             {

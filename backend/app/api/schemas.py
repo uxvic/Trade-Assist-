@@ -18,6 +18,7 @@ class PriceUpdate(BaseModel):
 
 class PlaceOrderRequest(BaseModel):
     symbol: str
+    asset_class: str = "crypto"
     side: str = Field(pattern="^(buy|sell)$")
     type: str = Field(default="market", pattern="^(market|limit|stop)$")
     qty: Decimal | None = None

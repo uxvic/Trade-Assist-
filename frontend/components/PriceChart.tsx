@@ -11,13 +11,21 @@ import { useEffect, useRef } from "react";
 
 import { useCandles, useQuote } from "@/lib/api";
 
-export function PriceChart({ symbol }: { symbol: string }) {
+export function PriceChart({
+  assetClass,
+  symbol,
+  timeframe,
+}: {
+  assetClass: string;
+  symbol: string;
+  timeframe: string;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
-  const { data, isLoading, isError } = useCandles(symbol, "1m", 150);
-  const { data: quote } = useQuote(symbol);
+  const { data, isLoading, isError } = useCandles(assetClass, symbol, timeframe, 150);
+  const { data: quote } = useQuote(assetClass, symbol);
 
   // Create the chart once.
   useEffect(() => {

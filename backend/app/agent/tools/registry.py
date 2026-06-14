@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.brokers.base import BrokerInterface
-from app.data.providers.base import MarketDataProvider, Timeframe
+from app.data.providers.base import Timeframe
+from app.data.providers.registry import get_provider
 from app.domain.enums import OrderSide, OrderType
 from app.domain.trading import OrderRequest
 
@@ -75,28 +76,35 @@ class ToolRegistry:
             return {"error": f"{type(exc).__name__}: {exc}"}
 
 
-def build_default_registry(
-    broker: BrokerInterface,
-    data: MarketDataProvider | None = None,
-) -> ToolRegistry:
+_ASSET_CLASS_PROP = {
+    "type": "string",
+    "enum": ["crypto", "forex"],
+    "default": "crypto",
+    "description": "Which market the symbol belongs to.",
+}
+
+
+def build_default_registry(broker: BrokerInterface) -> ToolRegistry:
     """Wire the core MVP tools to live services."""
 
     registry = ToolRegistry()
 
     # -- read: market data -------------------------------------------------
     async def get_quote(args: dict) -> dict:
-        if data is None:
-            return {"error": "No market-data provider configured"}
-        q = await data.get_quote(args["symbol"])
+        provider = get_provider(args.get("asset_class", "crypto"))
+        q = await provider.get_quote(args["symbol"])
         return {"symbol": q.symbol, "last": str(q.last), "bid": str(q.bid), "ask": str(q.ask)}
 
     registry.register(
         Tool(
             name="get_quote",
-            description="Get the latest price (last/bid/ask) for a symbol, e.g. BTCUSDT.",
+            description="Get the latest price (last/bid/ask) for a symbol, e.g. BTCUSDT or EURUSD.",
             parameters={
                 "type": "object",
-                "properties": {"symbol": {"type": "string", "description": "Ticker symbol"}},
+                "properties": {
+                    "symbol": {"type": "string", "description": "Ticker symbol"},
+                    "asset_class": _ASSET_CLASS_PROP,
+                },
                 "required": ["symbol"],
             },
             handler=get_quote,
@@ -104,10 +112,9 @@ def build_default_registry(
     )
 
     async def get_chart(args: dict) -> dict:
-        if data is None:
-            return {"error": "No market-data provider configured"}
+        provider = get_provider(args.get("asset_class", "crypto"))
         tf = Timeframe(args.get("timeframe", "1m"))
-        candles = await data.get_candles(args["symbol"], tf, int(args.get("limit", 50)))
+        candles = await provider.get_candles(args["symbol"], tf, int(args.get("limit", 50)))
         return {
             "symbol": args["symbol"],
             "timeframe": tf.value,
@@ -132,6 +139,7 @@ def build_default_registry(
                 "type": "object",
                 "properties": {
                     "symbol": {"type": "string"},
+                    "asset_class": _ASSET_CLASS_PROP,
                     "timeframe": {
                         "type": "string",
                         "enum": [tf.value for tf in Timeframe],
@@ -177,6 +185,13 @@ def build_default_registry(
 
     # -- act: place a paper order -----------------------------------------
     async def place_paper_order(args: dict) -> dict:
+        # Price the order off the live market first, like the order-ticket API.
+        try:
+            provider = get_provider(args.get("asset_class", "crypto"))
+            quote = await provider.get_quote(args["symbol"])
+            broker.update_price(args["symbol"], quote.last)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
         req = OrderRequest(
             symbol=args["symbol"],
             side=OrderSide(args["side"]),
@@ -209,6 +224,7 @@ def build_default_registry(
                 "type": "object",
                 "properties": {
                     "symbol": {"type": "string"},
+                    "asset_class": _ASSET_CLASS_PROP,
                     "side": {"type": "string", "enum": ["buy", "sell"]},
                     "type": {
                         "type": "string",

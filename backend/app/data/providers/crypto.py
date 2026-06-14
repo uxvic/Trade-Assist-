@@ -13,7 +13,13 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from app.data.providers.base import Candle, MarketDataProvider, Timeframe, Trade
+from app.data.providers.base import (
+    Candle,
+    InstrumentInfo,
+    MarketDataProvider,
+    Timeframe,
+    Trade,
+)
 from app.domain.enums import AssetClass
 from app.domain.trading import Quote
 
@@ -21,6 +27,7 @@ _TF_MAP = {
     Timeframe.M1: "1m",
     Timeframe.M5: "5m",
     Timeframe.M15: "15m",
+    Timeframe.M30: "30m",
     Timeframe.H1: "1h",
     Timeframe.H4: "4h",
     Timeframe.D1: "1d",
@@ -84,6 +91,49 @@ class BinanceProvider(MarketDataProvider):
                 )
             )
         return candles
+
+    # Cached USDT spot pairs from Binance exchangeInfo (loaded once per process).
+    _pairs_cache: list[dict] | None = None
+    _POPULAR = [
+        "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX",
+        "LINK", "DOT", "MATIC", "LTC", "TRX", "SHIB", "UNI", "ATOM",
+    ]
+
+    async def _load_pairs(self) -> list[dict]:
+        if BinanceProvider._pairs_cache is not None:
+            return BinanceProvider._pairs_cache
+        import httpx
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.get(f"{self.rest_url}/api/v3/exchangeInfo")
+            resp.raise_for_status()
+            data = resp.json()
+
+        pairs = [
+            {"symbol": s["symbol"], "base": s["baseAsset"]}
+            for s in data.get("symbols", [])
+            if s.get("status") == "TRADING" and s.get("quoteAsset") == "USDT"
+        ]
+        rank = {b: i for i, b in enumerate(self._POPULAR)}
+        pairs.sort(key=lambda p: (rank.get(p["base"], 9_999), p["base"]))
+        BinanceProvider._pairs_cache = pairs
+        return pairs
+
+    async def search_instruments(self, query: str = "", limit: int = 30) -> list[InstrumentInfo]:
+        pairs = await self._load_pairs()
+        q = query.strip().upper()
+        results: list[InstrumentInfo] = []
+        for p in pairs:
+            if q and q not in p["symbol"] and q not in p["base"]:
+                continue
+            results.append(
+                InstrumentInfo(
+                    symbol=p["symbol"], name=p["base"], ticker=p["base"], asset_class="crypto"
+                )
+            )
+            if len(results) >= limit:
+                break
+        return results
 
     async def stream_trades(self, symbols: list[str]) -> AsyncIterator[Trade]:
         import websockets

@@ -15,7 +15,7 @@ from app.agent.tools.registry import ToolRegistry, build_default_registry
 from app.brokers.paper import PaperBroker
 from app.config import get_settings
 from app.data.providers.base import MarketDataProvider
-from app.data.providers.crypto import BinanceProvider
+from app.data.providers.registry import get_provider
 
 # Runtime AI credentials set from the Settings page (in-memory only, never
 # persisted or logged). Lets a non-technical user enable the coach without
@@ -54,14 +54,13 @@ def reset_broker() -> PaperBroker:
     return get_broker()
 
 
-@lru_cache
-def get_data_provider() -> MarketDataProvider:
-    return BinanceProvider()
+def get_data_provider(asset_class: str = "crypto") -> MarketDataProvider:
+    return get_provider(asset_class)
 
 
 @lru_cache
 def get_tool_registry() -> ToolRegistry:
-    return build_default_registry(get_broker(), get_data_provider())
+    return build_default_registry(get_broker())
 
 
 def get_agent_service() -> AgentService:

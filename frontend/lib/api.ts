@@ -32,6 +32,13 @@ export interface SymbolInfo {
   ticker: string;
 }
 
+export interface InstrumentInfo {
+  symbol: string;
+  name: string;
+  ticker: string;
+  asset_class: string;
+}
+
 export interface Quote {
   symbol: string;
   last: string;
@@ -120,22 +127,38 @@ export function useSymbols() {
   });
 }
 
-export function useQuote(symbol: string | undefined) {
+export function useInstruments(assetClass: string, search: string) {
   return useQuery({
-    queryKey: ["quote", symbol],
-    queryFn: () => http<Quote>(`/api/market/quote/${symbol}`),
+    queryKey: ["instruments", assetClass, search],
+    queryFn: () =>
+      http<{ instruments: InstrumentInfo[] }>(
+        `/api/market/instruments?asset_class=${assetClass}&search=${encodeURIComponent(search)}`
+      ),
+    staleTime: 60_000,
+  });
+}
+
+export function useQuote(assetClass: string, symbol: string | undefined) {
+  return useQuery({
+    queryKey: ["quote", assetClass, symbol],
+    queryFn: () => http<Quote>(`/api/market/quote/${symbol}?asset_class=${assetClass}`),
     enabled: !!symbol,
     refetchInterval: 4000,
     retry: 1,
   });
 }
 
-export function useCandles(symbol: string | undefined, timeframe = "1m", limit = 150) {
+export function useCandles(
+  assetClass: string,
+  symbol: string | undefined,
+  timeframe = "1m",
+  limit = 150
+) {
   return useQuery({
-    queryKey: ["candles", symbol, timeframe, limit],
+    queryKey: ["candles", assetClass, symbol, timeframe, limit],
     queryFn: () =>
       http<{ candles: Candle[] }>(
-        `/api/market/candles/${symbol}?timeframe=${timeframe}&limit=${limit}`
+        `/api/market/candles/${symbol}?asset_class=${assetClass}&timeframe=${timeframe}&limit=${limit}`
       ),
     enabled: !!symbol,
     refetchInterval: 15000,
@@ -155,6 +178,7 @@ export function useAISettings() {
 // ---------------------------------------------------------------------------
 export interface PlaceOrderInput {
   symbol: string;
+  asset_class: string;
   side: "buy" | "sell";
   type?: "market" | "limit" | "stop";
   notional?: number;
