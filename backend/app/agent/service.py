@@ -169,10 +169,14 @@ def build_agent_service(
     registry: ToolRegistry,
     model: str | None = None,
     api_key: str | None = None,
+    system: str | None = None,
 ) -> AgentService:
     """Factory: ``provider`` is ``"claude"`` (default) or ``"litellm"``."""
+    system = system or COACH_SYSTEM_PROMPT
     if provider == "claude":
-        return ClaudeAgentRunner(registry, model=model or CLAUDE_DEFAULT, api_key=api_key)
+        return ClaudeAgentRunner(
+            registry, model=model or CLAUDE_DEFAULT, api_key=api_key, system=system
+        )
     if provider == "litellm":
-        return LiteLLMRunner(registry, model=model or "gpt-4o")
+        return LiteLLMRunner(registry, model=model or "gpt-4o", system=system)
     raise ValueError(f"Unknown agent provider: {provider!r}")

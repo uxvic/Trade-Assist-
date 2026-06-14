@@ -266,4 +266,40 @@ def build_default_registry(broker: BrokerInterface) -> ToolRegistry:
         )
     )
 
+    # -- co-pilot: propose a complete trade for the user to approve --------
+    async def propose_trade(args: dict) -> dict:
+        # Suggestion only — never executes. The UI renders it as an approve card.
+        keys = [
+            "symbol", "asset_class", "side", "notional",
+            "entry", "stop", "target", "leverage", "rationale", "risk",
+        ]
+        return {"proposal": {k: args.get(k) for k in keys}}
+
+    registry.register(
+        Tool(
+            name="propose_trade",
+            description=(
+                "Propose a complete trade for the user to approve (co-pilot mode). Does NOT "
+                "execute — the user taps to confirm. Always include rationale and the key risk."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                    "asset_class": _ASSET_CLASS_PROP,
+                    "side": {"type": "string", "enum": ["buy", "sell"]},
+                    "notional": {"type": "number", "description": "Suggested size in dollars"},
+                    "entry": {"type": "number", "description": "Suggested entry price (optional)"},
+                    "stop": {"type": "number", "description": "Suggested stop-loss price"},
+                    "target": {"type": "number", "description": "Suggested take-profit price"},
+                    "leverage": {"type": "number", "description": "Suggested leverage (1 = none)"},
+                    "rationale": {"type": "string"},
+                    "risk": {"type": "string", "description": "The key risk in plain language"},
+                },
+                "required": ["symbol", "side", "rationale"],
+            },
+            handler=propose_trade,
+        )
+    )
+
     return registry

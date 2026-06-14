@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from app.agent.prompts import coach_system_prompt
 from app.agent.service import AgentService, build_agent_service
 from app.agent.tools.registry import ToolRegistry, build_default_registry
 from app.brokers.paper import PaperBroker
@@ -26,6 +27,19 @@ _ai_override: dict[str, str | None] = {"provider": None, "api_key": None}
 def set_ai_credentials(provider: str | None, api_key: str | None) -> None:
     _ai_override["provider"] = provider
     _ai_override["api_key"] = api_key
+
+
+# How directive the coach is: "reads" | "suggestions" | "copilot".
+_coach_intensity = {"value": "reads"}
+
+
+def set_coach_intensity(value: str | None) -> None:
+    if value in ("reads", "suggestions", "copilot"):
+        _coach_intensity["value"] = value
+
+
+def get_coach_intensity() -> str:
+    return _coach_intensity["value"]
 
 
 def _active_provider() -> str:
@@ -70,4 +84,5 @@ def get_agent_service() -> AgentService:
         registry=get_tool_registry(),
         model=settings.agent_model,
         api_key=_ai_override["api_key"] or settings.anthropic_api_key,
+        system=coach_system_prompt(get_coach_intensity()),
     )

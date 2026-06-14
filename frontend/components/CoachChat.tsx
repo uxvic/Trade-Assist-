@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { streamChat, useAISettings } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 interface Msg {
@@ -32,6 +33,7 @@ const TOOL_LABELS: Record<string, string> = {
 
 export function CoachChat() {
   const ai = useAISettings();
+  const intensity = useAppStore((s) => s.coachIntensity);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,7 +56,7 @@ export function CoachChat() {
     ]);
     setBusy(true);
     try {
-      for await (const ev of streamChat(q, history)) {
+      for await (const ev of streamChat(q, history, intensity)) {
         if (ev.type === "no_key") {
           setNoKey(true);
           break;

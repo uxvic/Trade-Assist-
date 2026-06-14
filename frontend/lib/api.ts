@@ -225,23 +225,37 @@ export function useSetAIKey() {
 // ---------------------------------------------------------------------------
 // Coach streaming (SSE)
 // ---------------------------------------------------------------------------
+export interface TradeProposal {
+  symbol?: string;
+  asset_class?: string;
+  side?: "buy" | "sell";
+  notional?: number;
+  entry?: number;
+  stop?: number;
+  target?: number;
+  leverage?: number;
+  rationale?: string;
+  risk?: string;
+}
+
 export interface AgentEvent {
   type: "text" | "tool_call" | "tool_result" | "done" | "error" | "no_key";
   text?: string;
   name?: string;
   message?: string;
+  input?: Record<string, unknown>;
   [k: string]: unknown;
 }
 
-export async function* streamChat(
-  message: string,
-  history: { role: string; content: string }[],
+async function* _streamSSE(
+  url: string,
+  body: unknown,
   signal?: AbortSignal
 ): AsyncGenerator<AgentEvent> {
-  const res = await fetch("/api/agent/chat", {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify(body),
     signal,
   });
 
@@ -274,4 +288,35 @@ export async function* streamChat(
       }
     }
   }
+}
+
+export function streamChat(
+  message: string,
+  history: { role: string; content: string }[],
+  intensity = "reads",
+  signal?: AbortSignal
+): AsyncGenerator<AgentEvent> {
+  return _streamSSE("/api/agent/chat", { message, history, intensity }, signal);
+}
+
+export interface ObserveContext {
+  symbol: string;
+  assetClass: string;
+  timeframe: string;
+  name: string;
+  intensity: string;
+}
+
+export function streamObserve(ctx: ObserveContext, signal?: AbortSignal): AsyncGenerator<AgentEvent> {
+  return _streamSSE(
+    "/api/agent/observe",
+    {
+      symbol: ctx.symbol,
+      asset_class: ctx.assetClass,
+      timeframe: ctx.timeframe,
+      name: ctx.name,
+      intensity: ctx.intensity,
+    },
+    signal
+  );
 }

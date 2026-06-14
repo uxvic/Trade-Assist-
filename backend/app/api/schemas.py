@@ -66,3 +66,12 @@ class OrderResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] | None = None
+    intensity: str = "reads"
+
+
+class ObserveRequest(BaseModel):
+    symbol: str
+    asset_class: str = "crypto"
+    timeframe: str = "1m"
+    name: str = ""
+    intensity: str = "reads"

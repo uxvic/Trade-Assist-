@@ -1,5 +1,7 @@
 "use client";
 
+import { CoachPanel } from "@/components/CoachPanel";
+import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
@@ -18,6 +20,7 @@ export default function TradePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">
+      <GuidedTour />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <InstrumentPicker />
         <TimeframeSelector />
@@ -64,8 +67,8 @@ export default function TradePage() {
           </Card>
         </div>
 
-        {/* Order ticket */}
-        <div>
+        {/* Order ticket + coach */}
+        <div className="flex flex-col gap-4">
           <Card>
             <CardContent>
               <h3 className="mb-4 text-sm font-semibold text-fg">Place a practice trade</h3>
@@ -77,6 +80,7 @@ export default function TradePage() {
               />
             </CardContent>
           </Card>
+          <CoachPanel />
         </div>
       </div>
     </div>
