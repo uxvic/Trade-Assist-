@@ -27,7 +27,8 @@ interface AppState {
   onboarded: boolean;
   name: string;
   level: string; // "new" | "rusty" | "intermediate"
-  instrument: Instrument;
+  instrument: Instrument; // the active tab
+  openInstruments: Instrument[];
   timeframe: string;
   coachIntensity: CoachIntensity;
   copilotStyle: CopilotStyle;
@@ -39,6 +40,7 @@ interface AppState {
   completeOnboarding: (name: string, level?: string) => void;
   resetOnboarding: () => void;
   setInstrument: (instrument: Instrument) => void;
+  closeInstrument: (symbol: string) => void;
   setTimeframe: (timeframe: string) => void;
   setCoachIntensity: (intensity: CoachIntensity) => void;
   setCopilotStyle: (style: CopilotStyle) => void;
@@ -55,6 +57,7 @@ export const useAppStore = create<AppState>()(
       name: "",
       level: "rusty",
       instrument: DEFAULT_INSTRUMENT,
+      openInstruments: [DEFAULT_INSTRUMENT],
       timeframe: "1m",
       coachIntensity: "reads",
       copilotStyle: "panel",
@@ -66,7 +69,22 @@ export const useAppStore = create<AppState>()(
       completeOnboarding: (name, level) =>
         set({ onboarded: true, name: name.trim() || "there", ...(level ? { level } : {}) }),
       resetOnboarding: () => set({ onboarded: false }),
-      setInstrument: (instrument) => set({ instrument, suggestedTrade: null }),
+      setInstrument: (instrument) =>
+        set((s) => ({
+          instrument,
+          suggestedTrade: null,
+          openInstruments: s.openInstruments.some((i) => i.symbol === instrument.symbol)
+            ? s.openInstruments
+            : [...s.openInstruments, instrument],
+        })),
+      closeInstrument: (symbol) =>
+        set((s) => {
+          const remaining = s.openInstruments.filter((i) => i.symbol !== symbol);
+          const list = remaining.length ? remaining : [DEFAULT_INSTRUMENT];
+          const active =
+            s.instrument.symbol === symbol ? list[list.length - 1] : s.instrument;
+          return { openInstruments: list, instrument: active, suggestedTrade: null };
+        }),
       setTimeframe: (timeframe) => set({ timeframe }),
       setCoachIntensity: (coachIntensity) => set({ coachIntensity }),
       setCopilotStyle: (copilotStyle) => set({ copilotStyle }),
@@ -89,6 +107,7 @@ export const useAppStore = create<AppState>()(
         name: s.name,
         level: s.level,
         instrument: s.instrument,
+        openInstruments: s.openInstruments,
         timeframe: s.timeframe,
         coachIntensity: s.coachIntensity,
         copilotStyle: s.copilotStyle,

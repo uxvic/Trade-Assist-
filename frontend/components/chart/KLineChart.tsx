@@ -13,11 +13,20 @@ import { cn } from "@/lib/utils";
 
 import type { Chart, KLineData } from "klinecharts";
 
+export interface StrategyLevel {
+  price: number;
+  strength: number;
+  source_tf: string;
+}
+
 export interface ChartHandle {
   drawCoachLevels: (levels: { entry?: number; stop?: number; target?: number }) => void;
   clearCoach: () => void;
   markPoint: (time: number, price: number, text: string) => void;
   getCrosshair: () => { time: number | null; price: number | null };
+  drawLevels: (levels: StrategyLevel[]) => void;
+  drawProposedTrade: (t: { entry?: number; stop?: number; target?: number } | null) => void;
+  clearStrategy: () => void;
 }
 
 interface Props {
@@ -86,6 +95,14 @@ const COACH_COLORS: Record<string, string> = {
   target: "#16C784",
 };
 
+// S&R level color by source timeframe — monthly is the strongest / most distinct.
+const TF_COLORS: Record<string, string> = {
+  "1M": "#F5A623",
+  "1d": "#7C5CFF",
+  "4h": "#3FA7FF",
+  "1h": "#5BC8AF",
+};
+
 export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
   { assetClass, symbol, timeframe, onPointClick },
   ref
@@ -94,6 +111,7 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
   const chartRef = useRef<Chart | null>(null);
   const kcRef = useRef<typeof import("klinecharts") | null>(null);
   const coachIdsRef = useRef<string[]>([]);
+  const strategyIdsRef = useRef<string[]>([]);
   const crosshairRef = useRef<{ time: number | null; price: number | null }>({
     time: null,
     price: null,
@@ -183,6 +201,13 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
     coachIdsRef.current = [];
   }
 
+  function clearStrategy() {
+    const chart = chartRef.current;
+    if (!chart) return;
+    strategyIdsRef.current.forEach((id) => chart.removeOverlay(id));
+    strategyIdsRef.current = [];
+  }
+
   useImperativeHandle(ref, () => ({
     drawCoachLevels: ({ entry, stop, target }) => {
       const chart = chartRef.current;
@@ -218,6 +243,39 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
       if (typeof id === "string") coachIdsRef.current.push(id);
     },
     getCrosshair: () => crosshairRef.current,
+    drawLevels: (levels) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      clearStrategy();
+      for (const lv of levels) {
+        const color = TF_COLORS[lv.source_tf] ?? "#8A93A6";
+        const id = chart.createOverlay({
+          name: "horizontalStraightLine",
+          points: [{ value: lv.price }],
+          styles: { line: { color, size: 1 + Math.round(lv.strength * 2) }, text: { color } },
+        } as never);
+        if (typeof id === "string") strategyIdsRef.current.push(id);
+      }
+    },
+    drawProposedTrade: (t) => {
+      const chart = chartRef.current;
+      if (!chart || !t) return;
+      const lines: [number | undefined, string][] = [
+        [t.entry, COACH_COLORS.entry],
+        [t.stop, COACH_COLORS.stop],
+        [t.target, COACH_COLORS.target],
+      ];
+      for (const [value, color] of lines) {
+        if (value == null) continue;
+        const id = chart.createOverlay({
+          name: "priceLine",
+          points: [{ value }],
+          styles: { line: { color }, text: { color } },
+        } as never);
+        if (typeof id === "string") strategyIdsRef.current.push(id);
+      }
+    },
+    clearStrategy,
   }));
 
   // --- drawing tools + indicators --------------------------------------

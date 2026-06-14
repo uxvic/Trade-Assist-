@@ -174,6 +174,89 @@ export function useAISettings() {
 }
 
 // ---------------------------------------------------------------------------
+// Strategy engine + bot
+// ---------------------------------------------------------------------------
+export interface StrategyLevelInfo {
+  price: number;
+  type: string;
+  strength: number;
+  source_tf: string;
+  touches: number;
+  last_touch_ts: number;
+}
+
+export interface TrendInfo {
+  direction: string;
+  confidence: number;
+  reasons: string[];
+  ma50: number | null;
+  ma200: number | null;
+}
+
+export interface ProposedTradeInfo {
+  side: string;
+  entry: number;
+  stop: number;
+  target: number;
+  rr: number;
+  risk_per_unit: number;
+  exit_policy: string;
+  rationale: string;
+}
+
+export interface AiSecondOpinion {
+  market_read: string | null;
+  agrees_with_bot: boolean | null;
+  available?: boolean;
+}
+
+export interface StrategyAnalysis {
+  symbol: string;
+  asset_class: string;
+  as_of: number;
+  current_price: number;
+  trend: TrendInfo;
+  levels: StrategyLevelInfo[];
+  signal: { state: string; reason: string; confirmations: Record<string, boolean> };
+  proposed_trade: ProposedTradeInfo | null;
+  ai_second_opinion: AiSecondOpinion | null;
+}
+
+/** Deterministic analysis only (cheap, no LLM) — safe to poll. */
+export function useStrategyAnalysis(assetClass: string, symbol: string | undefined) {
+  return useQuery({
+    queryKey: ["strategy", assetClass, symbol],
+    queryFn: () =>
+      http<StrategyAnalysis>(
+        `/api/strategy/analyze?asset_class=${assetClass}&symbol=${symbol}`
+      ),
+    enabled: !!symbol,
+    refetchInterval: 30000,
+    retry: 1,
+  });
+}
+
+/** One-shot AI second opinion (costs a token call) — triggered by a button. */
+export async function fetchAiRead(assetClass: string, symbol: string): Promise<AiSecondOpinion> {
+  const res = await http<StrategyAnalysis>(
+    `/api/strategy/analyze?asset_class=${assetClass}&symbol=${symbol}&include_ai=true`
+  );
+  return res.ai_second_opinion ?? { market_read: null, agrees_with_bot: null };
+}
+
+export function useCompare() {
+  return useQuery({
+    queryKey: ["compare"],
+    queryFn: () =>
+      http<{
+        user: { equity: number; pnl: number };
+        bot: { equity: number; pnl: number; win_rate: number; trades_n: number; open_n: number };
+      }>("/api/strategy/compare"),
+    refetchInterval: 15000,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
 export interface PlaceOrderInput {

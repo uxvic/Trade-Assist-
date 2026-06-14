@@ -10,9 +10,11 @@ import { SlashAskBar } from "@/components/coach/SlashAskBar";
 import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
+import { PairTabs } from "@/components/PairTabs";
 import { PositionsList } from "@/components/PositionsList";
+import { MarketVsBotPanel } from "@/components/strategy/MarketVsBotPanel";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
-import { useQuote } from "@/lib/api";
+import { useQuote, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 
@@ -21,6 +23,7 @@ export default function TradePage() {
   const timeframe = useAppStore((s) => s.timeframe);
   const suggested = useAppStore((s) => s.suggestedTrade);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
+  const strategy = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
 
   const chartRef = useRef<ChartHandle>(null);
   const [popover, setPopover] = useState<{ anchor: { x: number; y: number }; ctx: PointContext } | null>(
@@ -43,6 +46,19 @@ export default function TradePage() {
     }
   }, [suggested, instrument.symbol]);
 
+  // Draw the strategy's S&R levels (color by timeframe) + the bot's proposed trade.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const a = strategy.data;
+    if (a && a.symbol === instrument.symbol) {
+      chart.drawLevels(a.levels);
+      chart.drawProposedTrade(a.signal.state === "buy" ? a.proposed_trade : null);
+    } else {
+      chart.clearStrategy();
+    }
+  }, [strategy.data, instrument.symbol]);
+
   const ctxBase = {
     symbol: instrument.symbol,
     assetClass: instrument.assetClass,
@@ -53,6 +69,8 @@ export default function TradePage() {
   return (
     <div className="flex h-full flex-col">
       <GuidedTour />
+
+      <PairTabs />
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
@@ -122,6 +140,7 @@ export default function TradePage() {
               assetClass={instrument.assetClass}
             />
           </div>
+          <MarketVsBotPanel />
           <CoachDock />
         </div>
       </div>
