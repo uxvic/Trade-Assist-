@@ -77,12 +77,34 @@ def get_tool_registry() -> ToolRegistry:
     return build_default_registry(get_broker())
 
 
-def get_agent_service() -> AgentService:
+def get_agent_service(system: str | None = None) -> AgentService:
     settings = get_settings()
     return build_agent_service(
         provider=_active_provider(),
         registry=get_tool_registry(),
         model=settings.agent_model,
         api_key=_ai_override["api_key"] or settings.anthropic_api_key,
-        system=coach_system_prompt(get_coach_intensity()),
+        system=system or coach_system_prompt(get_coach_intensity()),
     )
+
+
+# --------------------------------------------------------------------------- #
+# The strategy bot runs on its OWN separate demo account so the user can
+# compare their results against the bot's.
+# --------------------------------------------------------------------------- #
+@lru_cache
+def get_bot_broker() -> PaperBroker:
+    settings = get_settings()
+    return PaperBroker(account_id="bot-account", starting_cash=str(settings.paper_starting_cash))
+
+
+@lru_cache
+def get_strategy_bot():
+    from app.strategies.bot import StrategyBot
+
+    return StrategyBot(get_bot_broker())
+
+
+def reset_bot() -> None:
+    get_strategy_bot.cache_clear()
+    get_bot_broker.cache_clear()

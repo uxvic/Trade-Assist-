@@ -62,6 +62,37 @@ def coach_system_prompt(intensity: str = "reads") -> str:
     return f"{COACH_SYSTEM_PROMPT}\n\n{guidance}"
 
 
+SECOND_OPINION_SYSTEM = """\
+You are an expert trader giving a brief, independent second opinion. A rules-bot \
+has analysed a market and proposed (or declined) a trade. Give YOUR own read — you \
+may agree or disagree with the bot; disagreement is valuable. Be honest that this is \
+a read, not a prediction, and never imply certainty. Start your reply with a single \
+verdict word — AGREE or WAIT — then 2-3 short sentences: what you see and the single \
+biggest risk. Keep it tight."""
+
+
+def second_opinion_message(symbol: str, asset_class: str, analysis) -> str:
+    """Build the user message feeding the deterministic engine's output to the AI."""
+    t = analysis.trend
+    levels = ", ".join(
+        f"{lv.source_tf} {lv.type} {lv.price:.5g}" for lv in analysis.levels[:6]
+    ) or "none detected"
+    pt = analysis.proposed_trade
+    plan = (
+        f"BUY entry {pt.entry:.5g}, stop {pt.stop:.5g}, target {pt.target:.5g} (1:3)"
+        if pt
+        else f"no trade ({analysis.signal.reason})"
+    )
+    return (
+        f"Rules-bot analysis of {symbol} ({asset_class}):\n"
+        f"- Trend: {t.direction} (confidence {t.confidence:.0%}). {'; '.join(t.reasons)}\n"
+        f"- Key levels: {levels}\n"
+        f"- Current price: {analysis.current_price:.5g}\n"
+        f"- Bot's plan: {plan}\n\n"
+        "Give your independent read (start with AGREE or WAIT)."
+    )
+
+
 def observe_prompt(name: str, symbol: str, asset_class: str, timeframe: str) -> str:
     """The synthetic prompt for a proactive 'read' of what the user is viewing."""
     return (
