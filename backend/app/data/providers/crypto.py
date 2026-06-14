@@ -31,6 +31,8 @@ _TF_MAP = {
     Timeframe.H1: "1h",
     Timeframe.H4: "4h",
     Timeframe.D1: "1d",
+    Timeframe.W1: "1w",
+    Timeframe.MN1: "1M",
 }
 
 

@@ -9,7 +9,7 @@ a worker thread. ``yfinance``/``pandas`` are imported lazily.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.data.providers.base import Candle, InstrumentInfo, MarketDataProvider, Timeframe
@@ -24,11 +24,22 @@ _INTERVALS = {
     Timeframe.M15: "15m",
     Timeframe.M30: "30m",
     Timeframe.H1: "60m",
-    Timeframe.H4: "60m",
+    Timeframe.H4: "60m",  # yfinance has no 4h → fetched as 1h and resampled
     Timeframe.D1: "1d",
+    Timeframe.W1: "1wk",
+    Timeframe.MN1: "1mo",
 }
 # How much history to request per interval (yfinance caps intraday lookback).
-_PERIODS = {"1m": "5d", "5m": "60d", "15m": "60d", "30m": "60d", "60m": "60d", "1d": "2y"}
+_PERIODS = {
+    "1m": "5d",
+    "5m": "60d",
+    "15m": "60d",
+    "30m": "60d",
+    "60m": "60d",
+    "1d": "2y",
+    "1wk": "5y",
+    "1mo": "10y",
+}
 
 FOREX_PAIRS: list[tuple[str, str]] = [
     ("EURUSD", "Euro / US Dollar"),
@@ -67,6 +78,32 @@ def _pretty(symbol: str) -> str:
     return f"{s[:3]}/{s[3:]}" if len(s) == 6 else s
 
 
+def _resample_to_4h(symbol: str, hourly: list[Candle]) -> list[Candle]:
+    """Aggregate 1h candles into synthetic 4h bars aligned to 0/4/8/12/16/20 UTC."""
+    buckets: dict[int, list[Candle]] = {}
+    for c in hourly:
+        bucket_hour = c.ts.hour - (c.ts.hour % 4)
+        start = c.ts.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+        buckets.setdefault(int(start.timestamp()), []).append(c)
+
+    out: list[Candle] = []
+    for key in sorted(buckets):
+        group = buckets[key]
+        out.append(
+            Candle(
+                symbol=symbol.upper(),
+                ts=datetime.fromtimestamp(key, tz=UTC),
+                open=group[0].open,
+                high=max(g.high for g in group),
+                low=min(g.low for g in group),
+                close=group[-1].close,
+                volume=sum((g.volume for g in group), Decimal("0")),
+                timeframe=Timeframe.H4,
+            )
+        )
+    return out
+
+
 class ForexProvider(MarketDataProvider):
     asset_classes = (AssetClass.FOREX,)
     supports_streaming = False
@@ -92,15 +129,21 @@ class ForexProvider(MarketDataProvider):
         return await asyncio.to_thread(self._history, symbol, timeframe, limit)
 
     def _history(self, symbol: str, timeframe: Timeframe, limit: int) -> list[Candle]:
-        import yfinance as yf
+        # yfinance has no native 4h → build it by resampling 1h candles.
+        if timeframe == Timeframe.H4:
+            hourly = self._fetch(symbol, "60m", _PERIODS["60m"], Timeframe.H1)
+            return _resample_to_4h(symbol, hourly)[-limit:]
 
         interval = _INTERVALS[timeframe]
         period = _PERIODS.get(interval, "60d")
+        return self._fetch(symbol, interval, period, timeframe)[-limit:]
+
+    def _fetch(self, symbol: str, interval: str, period: str, timeframe: Timeframe) -> list[Candle]:
+        import yfinance as yf
+
         df = yf.Ticker(_yahoo_ticker(symbol)).history(period=period, interval=interval)
         if df.empty:
             return []
-        df = df.tail(limit)
-
         candles: list[Candle] = []
         for ts, row in df.iterrows():
             dt = ts.to_pydatetime()

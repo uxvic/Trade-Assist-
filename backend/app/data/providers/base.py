@@ -21,6 +21,8 @@ class Timeframe(StrEnum):
     H1 = "1h"
     H4 = "4h"
     D1 = "1d"
+    W1 = "1w"
+    MN1 = "1M"
 
 
 @dataclass
