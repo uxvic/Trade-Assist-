@@ -3,6 +3,8 @@ const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 const nextConfig = {
   reactStrictMode: true,
+  // Self-contained server output for a slim production Docker image.
+  output: "standalone",
   // Keep type-checking on (valuable), but don't let lint style-rules block builds.
   eslint: { ignoreDuringBuilds: true },
   // Proxy API calls to the FastAPI backend so the user only ever opens

@@ -1,0 +1,24 @@
+# Always-on backend for Trade-Assist (run `fly deploy` from the backend/ dir so
+# this Dockerfile's build context is correct). A persistent volume holds the
+# SQLite durability file so the bot's history + accounts survive restarts.
+app = "trade-assist-backend"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SQLITE_PATH = "/data/trade_assist.db"
+  # Set the rest as secrets:  fly secrets set ANTHROPIC_API_KEY=… CORS_ORIGINS='["https://your-frontend"]'
+
+[mounts]
+  source = "trade_assist_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Keep the machine running 24/7 so the bot never stops watching the market.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
