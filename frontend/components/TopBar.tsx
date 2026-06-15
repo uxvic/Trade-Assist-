@@ -10,6 +10,7 @@ import { fmtUSD } from "@/lib/format";
 const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/home": { title: "Home", subtitle: "Here's where you are" },
   "/trade": { title: "Trade", subtitle: "Practice with real prices" },
+  "/bot": { title: "Bot", subtitle: "How the strategy bot is doing" },
   "/learn": { title: "Learn", subtitle: "Build the basics, step by step" },
   "/coach": { title: "Coach", subtitle: "Ask anything, anytime" },
   "/settings": { title: "Settings", subtitle: "Your account & AI coach" },

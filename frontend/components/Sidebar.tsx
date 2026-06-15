@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, GraduationCap, Home, LineChart, MessageCircle, Settings, ShieldCheck } from "lucide-react";
+import { BookOpen, Bot, GraduationCap, Home, LineChart, MessageCircle, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/home", label: "Home", icon: Home },
   { href: "/trade", label: "Trade", icon: LineChart },
+  { href: "/bot", label: "Bot", icon: Bot },
   { href: "/learn", label: "Learn", icon: BookOpen },
   { href: "/coach", label: "Coach", icon: MessageCircle },
   { href: "/settings", label: "Settings", icon: Settings },
