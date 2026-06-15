@@ -5,6 +5,17 @@ it a real always-on product — watching the market and acting around the clock,
 even with your machine off — host the backend in the cloud. Everything is
 already structured for this; it's a one-time setup.
 
+## Quickest way to let friends test it (no hosting)
+```bash
+./scripts/share.sh
+```
+This boots the app and opens a free **Cloudflare quick-tunnel**, printing an
+`https://….trycloudflare.com` link you can paste to testers. Each person signs
+up for their own practice account. The link is live only while the script runs
+and changes each time (needs `cloudflared` installed — see the script header).
+Before sharing, set a real `AUTH_SECRET` in `backend/.env`. For a permanent,
+always-on URL, deploy instead (below).
+
 ## What runs where
 - **Backend** (FastAPI + the bot loop + the SQLite durability file) → an
   always-on host. The bot's background loop lives in the web process, so the
