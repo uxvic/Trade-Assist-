@@ -25,6 +25,13 @@ from app.runtime import get_broker, get_data_provider, reset_broker
 router = APIRouter(prefix="/api/paper", tags=["paper-trading"])
 
 
+def _save_user_account() -> None:
+    """Persist the user's account so it survives restarts (best-effort)."""
+    from app.persistence.store import get_store
+
+    get_store().save_snapshot("user_broker", get_broker().to_snapshot())
+
+
 def _infer_asset_class(symbol: str) -> str:
     """Crypto pairs in our universe quote in USDT; everything else is forex."""
     return "crypto" if symbol.upper().endswith("USDT") else "forex"
@@ -80,6 +87,7 @@ async def place_order(req: PlaceOrderRequest) -> OrderResponse:
             stop_price=Decimal(req.stop_price) if req.stop_price is not None else None,
         )
     )
+    _save_user_account()
     return _order_to_response(order)
 
 

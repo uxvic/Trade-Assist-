@@ -23,6 +23,12 @@ out/
 npm-debug.log*
 yarn-error.log*
 
+# Local data (SQLite durability store)
+/backend/data/
+*.db
+*.db-wal
+*.db-shm
+
 # Editors / OS
 .vscode/
 .idea/

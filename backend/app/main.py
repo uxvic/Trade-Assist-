@@ -33,8 +33,28 @@ async def _bot_loop() -> None:
         await asyncio.sleep(_BOT_INTERVAL_SECONDS)
 
 
+def _restore_state() -> None:
+    """Rehydrate the in-memory engine from the SQLite store on boot — so the
+    bot's trades/notes/P&L and the user's account survive restarts. Must run
+    before the bot loop starts, or the first tick would overwrite the snapshot.
+    """
+    from app.persistence.store import get_store
+    from app.runtime import get_bot_broker, get_broker, get_strategy_bot
+
+    store = get_store()
+    user_snap = store.load_snapshot("user_broker")
+    if user_snap:
+        get_broker().load_snapshot(user_snap)
+    bot_snap = store.load_snapshot("bot_broker")
+    if bot_snap:
+        get_bot_broker().load_snapshot(bot_snap)
+    get_strategy_bot().restore()
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    with contextlib.suppress(Exception):
+        _restore_state()
     task = asyncio.create_task(_bot_loop())
     try:
         yield

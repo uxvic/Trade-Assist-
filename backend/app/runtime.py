@@ -63,6 +63,9 @@ def get_broker() -> PaperBroker:
 
 def reset_broker() -> PaperBroker:
     """Replace the demo account with a fresh one."""
+    from app.persistence.store import get_store
+
+    get_store().clear_scope("user_broker")  # don't resurrect the old account on restart
     get_broker.cache_clear()
     get_tool_registry.cache_clear()
     return get_broker()
@@ -100,11 +103,18 @@ def get_bot_broker() -> PaperBroker:
 
 @lru_cache
 def get_strategy_bot():
+    from app.persistence.store import get_store
     from app.strategies.bot import StrategyBot
 
-    return StrategyBot(get_bot_broker())
+    return StrategyBot(get_bot_broker(), store=get_store())
 
 
 def reset_bot() -> None:
+    from app.persistence.store import get_store
+
+    store = get_store()
+    store.clear_scope("bot_broker")
+    store.clear_scope("bot_state")
+    store.clear_trades()  # fresh account ⇒ fresh track record
     get_strategy_bot.cache_clear()
     get_bot_broker.cache_clear()

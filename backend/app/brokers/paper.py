@@ -15,10 +15,11 @@ Design notes
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 
 from app.brokers.base import BrokerInterface
-from app.domain.enums import OrderSide, OrderStatus, OrderType
+from app.domain.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from app.domain.trading import (
     AccountState,
     Fill,
@@ -34,6 +35,10 @@ ZERO = Decimal("0")
 
 def _dec(value) -> Decimal:
     return value if isinstance(value, Decimal) else Decimal(str(value))
+
+
+def _opt_dec(value) -> Decimal | None:
+    return Decimal(value) if value is not None else None
 
 
 class FillModel:
@@ -281,3 +286,127 @@ class PaperBroker(BrokerInterface):
     def _equity(self) -> Decimal:
         market_value = sum((p.qty * p.market_price for p in self._positions.values()), ZERO)
         return self.cash + market_value
+
+    # ------------------------------------------------------------------ #
+    # Durability — serialize/restore state (Decimals as strings, no floats)
+    # ------------------------------------------------------------------ #
+    def to_snapshot(self) -> dict:
+        return {
+            "account_id": self.account_id,
+            "base_currency": self.base_currency,
+            "cash": str(self.cash),
+            "fill_model": {
+                "slippage_bps": str(self.fill_model.slippage_bps),
+                "fee_bps": str(self.fill_model.fee_bps),
+            },
+            "positions": {s: _pos_to_dict(p) for s, p in self._positions.items()},
+            "orders": {i: _order_to_dict(o) for i, o in self._orders.items()},
+            "fills": [_fill_to_dict(f) for f in self._fills],
+            "last_prices": {s: str(p) for s, p in self._last_prices.items()},
+        }
+
+    def load_snapshot(self, data: dict) -> None:
+        """Repopulate state directly — never calls place_order/update_price, so
+        no fills re-fire. Resting orders come back PENDING and are evaluated only
+        by the next live price (no look-ahead)."""
+        self.cash = _dec(data["cash"])
+        fm = data.get("fill_model")
+        if fm:
+            self.fill_model = FillModel(
+                slippage_bps=fm["slippage_bps"], fee_bps=fm["fee_bps"]
+            )
+        self._positions = {s: _pos_from_dict(d) for s, d in data.get("positions", {}).items()}
+        self._orders = {i: _order_from_dict(d) for i, d in data.get("orders", {}).items()}
+        self._fills = [_fill_from_dict(f) for f in data.get("fills", [])]
+        self._last_prices = {s: _dec(p) for s, p in data.get("last_prices", {}).items()}
+
+
+# --------------------------------------------------------------------------- #
+# (De)serialization helpers for the durability snapshot.
+# --------------------------------------------------------------------------- #
+def _pos_to_dict(p: Position) -> dict:
+    return {
+        "symbol": p.symbol,
+        "qty": str(p.qty),
+        "avg_cost": str(p.avg_cost),
+        "realized_pnl": str(p.realized_pnl),
+        "market_price": str(p.market_price),
+    }
+
+
+def _pos_from_dict(d: dict) -> Position:
+    return Position(
+        symbol=d["symbol"],
+        qty=_dec(d["qty"]),
+        avg_cost=_dec(d["avg_cost"]),
+        realized_pnl=_dec(d["realized_pnl"]),
+        market_price=_dec(d["market_price"]),
+    )
+
+
+def _fill_to_dict(f: Fill) -> dict:
+    return {
+        "id": f.id,
+        "order_id": f.order_id,
+        "qty": str(f.qty),
+        "price": str(f.price),
+        "fee": str(f.fee),
+        "slippage": str(f.slippage),
+        "ts": f.ts.isoformat(),
+    }
+
+
+def _fill_from_dict(d: dict) -> Fill:
+    return Fill(
+        order_id=d["order_id"],
+        qty=_dec(d["qty"]),
+        price=_dec(d["price"]),
+        fee=_dec(d["fee"]),
+        slippage=_dec(d["slippage"]),
+        id=d["id"],
+        ts=datetime.fromisoformat(d["ts"]),
+    )
+
+
+def _order_to_dict(o: Order) -> dict:
+    return {
+        "id": o.id,
+        "symbol": o.symbol,
+        "side": o.side.value,
+        "type": o.type.value,
+        "qty": str(o.qty),
+        "account_id": o.account_id,
+        "status": o.status.value,
+        "filled_qty": str(o.filled_qty),
+        "avg_fill_price": str(o.avg_fill_price) if o.avg_fill_price is not None else None,
+        "limit_price": str(o.limit_price) if o.limit_price is not None else None,
+        "stop_price": str(o.stop_price) if o.stop_price is not None else None,
+        "tif": o.tif.value,
+        "reject_reason": o.reject_reason,
+        "risk_assessment": o.risk_assessment,
+        "created_at": o.created_at.isoformat(),
+        "updated_at": o.updated_at.isoformat(),
+        "fills": [_fill_to_dict(f) for f in o.fills],
+    }
+
+
+def _order_from_dict(d: dict) -> Order:
+    return Order(
+        id=d["id"],
+        symbol=d["symbol"],
+        side=OrderSide(d["side"]),
+        type=OrderType(d["type"]),
+        qty=_dec(d["qty"]),
+        account_id=d["account_id"],
+        status=OrderStatus(d["status"]),
+        filled_qty=_dec(d["filled_qty"]),
+        avg_fill_price=_opt_dec(d["avg_fill_price"]),
+        limit_price=_opt_dec(d["limit_price"]),
+        stop_price=_opt_dec(d["stop_price"]),
+        tif=TimeInForce(d["tif"]),
+        reject_reason=d["reject_reason"],
+        risk_assessment=d["risk_assessment"],
+        created_at=datetime.fromisoformat(d["created_at"]),
+        updated_at=datetime.fromisoformat(d["updated_at"]),
+        fills=[_fill_from_dict(f) for f in d["fills"]],
+    )

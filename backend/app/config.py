@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Paper trading
     paper_starting_cash: float = 100_000.0
 
+    # Durability — zero-config SQLite file (mount ./data as a volume to deploy).
+    sqlite_path: str = "./data/trade_assist.db"
+
     # Web
     cors_origins: list[str] = ["http://localhost:3000"]
 

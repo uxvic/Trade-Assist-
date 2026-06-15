@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from app.brokers.paper import PaperBroker
 from app.domain.enums import OrderSide, OrderType
-from app.domain.trading import OrderRequest
+from app.domain.trading import OrderRequest, new_id
 from app.strategies.engine import analyze
 from app.strategies.narrate import Note, narrate, signature
 from app.strategies.types import Analysis
@@ -34,11 +34,13 @@ NOTES_MAX = 80  # per-symbol ring buffer cap
 
 
 class StrategyBot:
-    def __init__(self, broker: PaperBroker):
+    def __init__(self, broker: PaperBroker, store=None):
         self.broker = broker
+        self.store = store  # app.persistence.store.Store | None (None → no durability)
         self.watchlist = list(DEFAULT_WATCHLIST)
         self.trades: list[dict] = []
-        self._open: dict[str, dict] = {}  # symbol -> open trade record
+        self._open: dict[str, dict] = {}  # symbol -> open trade record (same obj as in trades)
+        self._asset: dict[str, str] = {s: ac for s, ac in DEFAULT_WATCHLIST}  # symbol -> class
         # Live-narration state (per symbol).
         self.notes: dict[str, list[Note]] = {}  # symbol -> ring buffer, oldest first
         self._sig: dict[str, str] = {}  # symbol -> last spoken signature
@@ -69,9 +71,13 @@ class StrategyBot:
             except Exception:  # noqa: BLE001 - one bad symbol must not stop the loop
                 continue
         await self.enforce_eod()
+        # Persist the bot's account + bookkeeping once per tick (cheap, infrequent).
+        self._persist_broker()
+        self._persist_state()
 
     def watch(self, symbol: str, asset_class: str) -> None:
         """Add an instrument to the live watchlist so the bot trades + narrates it."""
+        self._asset[symbol] = asset_class
         if not any(s == symbol for s, _ in self.watchlist):
             self.watchlist.append((symbol, asset_class))
 
@@ -152,6 +158,7 @@ class StrategyBot:
             )
         )
         rec = {
+            "trade_id": new_id("bottrade"),
             "symbol": symbol,
             "asset_class": asset_class,
             "side": "buy",
@@ -177,6 +184,8 @@ class StrategyBot:
             f"target {pt.target:.5g}, risking ~1%.",
             rec["opened_at"],
         )
+        self._persist_trade(rec)
+        self._persist_state()
 
     async def enforce_eod(self, now: datetime.datetime | None = None) -> None:
         now = now or datetime.datetime.now(datetime.UTC)
@@ -199,11 +208,19 @@ class StrategyBot:
             self._reconcile(symbol)
 
     # ---- narration ----------------------------------------------------- #
+    NOTIFY_KINDS = frozenset({"signal", "enter", "exit"})
+
     def _add_note(self, symbol: str, kind: str, text: str, ts: int | None = None) -> None:
+        note = Note(ts=ts or int(time.time()), kind=kind, text=text)
         buf = self.notes.setdefault(symbol, [])
-        buf.append(Note(ts=ts or int(time.time()), kind=kind, text=text))
+        buf.append(note)
         if len(buf) > NOTES_MAX:
             del buf[: len(buf) - NOTES_MAX]
+        if self.store:
+            self.store.append_event(
+                note.ts, symbol, self._asset.get(symbol, "crypto"),
+                kind, text, kind in self.NOTIFY_KINDS,
+            )
 
     def _record_notes(self, symbol: str, analysis: Analysis) -> None:
         """Speak only when the read changes, or on a periodic heartbeat."""
@@ -221,6 +238,50 @@ class StrategyBot:
         """Newest first, for the live feed."""
         buf = self.notes.get(symbol, [])
         return [note.to_dict() for note in reversed(buf[-n:])]
+
+    # ---- durability ---------------------------------------------------- #
+    def _persist_trade(self, rec: dict) -> None:
+        if self.store:
+            self.store.upsert_trade(rec)
+
+    def _persist_broker(self) -> None:
+        if self.store:
+            self.store.save_snapshot("bot_broker", self.broker.to_snapshot())
+
+    def _persist_state(self) -> None:
+        """Snapshot the bot's bookkeeping. Open trades are derived from the
+        durable trade log on restore, so they aren't duplicated here."""
+        if not self.store:
+            return
+        self.store.save_snapshot(
+            "bot_state",
+            {
+                "watchlist": [list(w) for w in self.watchlist],
+                "asset": self._asset,
+                "sig": self._sig,
+                "spoke_at": self._spoke_at,
+            },
+        )
+
+    def restore(self) -> None:
+        """Rehydrate from the store on boot. Best-effort; a fresh store no-ops."""
+        if not self.store:
+            return
+        # Trade log is authoritative for history + currently-open trades.
+        self.trades = self.store.read_trades()
+        self._open = {t["symbol"]: t for t in self.trades if t.get("status") == "open"}
+        snap = self.store.load_snapshot("bot_state")
+        if snap:
+            wl = [tuple(w) for w in snap.get("watchlist", [])]
+            if wl:
+                self.watchlist = wl
+            self._asset = snap.get("asset", self._asset)
+            self._sig = snap.get("sig", {})
+            self._spoke_at = snap.get("spoke_at", {})
+        # Rebuild each symbol's note buffer (oldest-first) from the event log.
+        for symbol, _ac in self.watchlist:
+            evs = self.store.read_events(symbol=symbol, limit=NOTES_MAX)
+            self.notes[symbol] = [Note(e["ts"], e["kind"], e["text"]) for e in reversed(evs)]
 
     def _position_dict(self, symbol: str) -> dict | None:
         pos = self.broker._positions.get(symbol)
@@ -270,6 +331,8 @@ class StrategyBot:
             symbol, "exit", f"{verb} on {symbol}. P&L {rec['pnl']:+.2f}.", rec["closed_at"]
         )
         del self._open[symbol]
+        self._persist_trade(rec)
+        self._persist_state()
 
     def track_record(self) -> list[dict]:
         return [{k: v for k, v in t.items() if not k.startswith("_")} for t in self.trades]
