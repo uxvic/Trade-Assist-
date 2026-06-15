@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.api.schemas import AccountResponse, PositionResponse
 from app.data.providers.registry import get_provider
+from app.persistence.store import get_store
 from app.runtime import get_bot_broker, get_broker, get_strategy_bot, reset_bot
 from app.strategies.engine import analyze
 from app.strategies.second_opinion import get_bot_commentary, get_second_opinion
@@ -79,6 +80,20 @@ async def bot_feed(symbol: str, asset_class: str = Query(default="crypto")) -> d
         return await get_strategy_bot().feed(symbol, asset_class)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Bot feed error: {exc}") from exc
+
+
+@router.get("/bot/notifications")
+async def bot_notifications(limit: int = Query(default=50)) -> dict:
+    """Notify-worthy events (setups, entries, exits) for the activity centre."""
+    return {"notifications": get_store().read_events(notify_only=True, limit=limit)}
+
+
+@router.get("/bot/events")
+async def bot_events(
+    symbol: str | None = Query(default=None), limit: int = Query(default=200)
+) -> dict:
+    """The full activity log (all kinds) — powers the Bot page."""
+    return {"events": get_store().read_events(symbol=symbol, limit=limit)}
 
 
 @router.get("/bot/commentary")

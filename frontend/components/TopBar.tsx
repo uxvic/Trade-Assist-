@@ -2,6 +2,7 @@
 
 import { Wallet } from "lucide-react";
 
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { Badge } from "@/components/ui/badge";
 import { useAccount } from "@/lib/api";
 import { fmtUSD } from "@/lib/format";
@@ -34,6 +35,7 @@ export function TopBar({ pathname }: { pathname: string }) {
             {account.data ? fmtUSD(account.data.equity) : "—"}
           </span>
         </div>
+        <NotificationCenter />
       </div>
     </header>
   );

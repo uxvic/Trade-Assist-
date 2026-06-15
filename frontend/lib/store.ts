@@ -35,6 +35,8 @@ interface AppState {
   suggestedTrade: TradeProposal | null;
   tourSeen: boolean;
   completedLessons: string[];
+  lastSeenNotifAt: number; // epoch secs of the newest notification the user has seen
+  desktopAlerts: boolean; // fire browser notifications on new bot events
 
   setHydrated: () => void;
   completeOnboarding: (name: string, level?: string) => void;
@@ -47,6 +49,8 @@ interface AppState {
   setSuggestedTrade: (trade: TradeProposal | null) => void;
   setTourSeen: (seen: boolean) => void;
   completeLesson: (id: string) => void;
+  markNotificationsSeen: (ts: number) => void;
+  setDesktopAlerts: (on: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -64,6 +68,8 @@ export const useAppStore = create<AppState>()(
       suggestedTrade: null,
       tourSeen: false,
       completedLessons: [],
+      lastSeenNotifAt: 0,
+      desktopAlerts: false,
 
       setHydrated: () => set({ hasHydrated: true }),
       completeOnboarding: (name, level) =>
@@ -96,6 +102,9 @@ export const useAppStore = create<AppState>()(
             ? s
             : { completedLessons: [...s.completedLessons, id] }
         ),
+      markNotificationsSeen: (ts) =>
+        set((s) => ({ lastSeenNotifAt: Math.max(s.lastSeenNotifAt, ts) })),
+      setDesktopAlerts: (desktopAlerts) => set({ desktopAlerts }),
     }),
     {
       name: "trade-assist",
@@ -113,6 +122,8 @@ export const useAppStore = create<AppState>()(
         copilotStyle: s.copilotStyle,
         tourSeen: s.tourSeen,
         completedLessons: s.completedLessons,
+        lastSeenNotifAt: s.lastSeenNotifAt,
+        desktopAlerts: s.desktopAlerts,
       }),
       onRehydrateStorage: () => (state) => state?.setHydrated(),
     }

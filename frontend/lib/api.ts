@@ -319,6 +319,72 @@ export async function fetchBotCommentary(
   return http(`/api/strategy/bot/commentary?asset_class=${assetClass}&symbol=${symbol}`);
 }
 
+export interface BotEvent {
+  ts: number;
+  symbol: string | null;
+  asset_class: string | null;
+  kind: string;
+  text: string;
+  notify: number;
+}
+
+/** Notify-worthy bot events (setups/entries/exits) for the activity centre. */
+export function useBotNotifications() {
+  return useQuery({
+    queryKey: ["bot-notifications"],
+    queryFn: () =>
+      http<{ notifications: BotEvent[] }>("/api/strategy/bot/notifications?limit=50"),
+    refetchInterval: 15000,
+  });
+}
+
+/** The bot's full activity log (all kinds) — for the Bot page. */
+export function useBotEvents(symbol?: string) {
+  const q = symbol ? `&symbol=${symbol}` : "";
+  return useQuery({
+    queryKey: ["bot-events", symbol ?? "all"],
+    queryFn: () => http<{ events: BotEvent[] }>(`/api/strategy/bot/events?limit=200${q}`),
+    refetchInterval: 20000,
+  });
+}
+
+export interface BotTrade {
+  trade_id: string;
+  symbol: string;
+  asset_class: string;
+  side: string;
+  qty: number;
+  entry: number;
+  stop: number;
+  target: number;
+  rationale: string;
+  opened_at: number;
+  closed_at: number | null;
+  exit_reason: string | null;
+  pnl: number | null;
+  status: string;
+}
+
+/** The bot's track record (durable across restarts) + aggregate stats. */
+export function useBotTrades() {
+  return useQuery({
+    queryKey: ["bot-trades"],
+    queryFn: () =>
+      http<{
+        trades: BotTrade[];
+        stats: {
+          trades_n: number;
+          open_n: number;
+          wins: number;
+          win_rate: number;
+          realized_pnl: number;
+        };
+        watching: [string, string][];
+      }>("/api/strategy/bot/trades"),
+    refetchInterval: 20000,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
