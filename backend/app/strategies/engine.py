@@ -9,6 +9,7 @@ import time
 
 from app.data.providers.base import Candle, MarketDataProvider, Timeframe
 from app.strategies.levels import detect_all_levels
+from app.strategies.news import refresh_calendar
 from app.strategies.signal import evaluate
 from app.strategies.trend import classify_trend
 from app.strategies.types import Analysis, CandleF, Trend
@@ -40,6 +41,7 @@ def _to_candlef(candles: list[Candle], drop_forming: bool = True) -> list[Candle
 
 
 async def analyze(symbol: str, asset_class: str, provider: MarketDataProvider) -> Analysis:
+    await refresh_calendar()  # keep the news-blackout calendar fresh (hourly, best-effort)
     tfs = [Timeframe.MN1, Timeframe.D1, Timeframe.H4, Timeframe.H1, Timeframe.M30]
     results = await asyncio.gather(
         *[provider.get_candles(symbol, tf, _TF_LIMITS[tf]) for tf in tfs],

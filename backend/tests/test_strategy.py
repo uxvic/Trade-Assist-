@@ -210,6 +210,28 @@ def test_signature_changes_on_state_flip():
     assert signature(_analysis("up", "no_trade")) == signature(_analysis("up", "no_trade"))
 
 
+# --------------------------------------------------------------------------- #
+# News blackout
+# --------------------------------------------------------------------------- #
+from app.strategies import news  # noqa: E402
+
+
+def test_news_blackout_matches_currency_and_window():
+    now = 1_000_000
+    news._calendar = [{"ts": now + 60, "currency": "USD", "title": "NFP"}]
+    try:
+        # EURUSD shares USD → inside the window → blackout.
+        assert news.is_blackout("EURUSD", now=now, asset_class="forex")
+        # Crypto/stocks are gated on USD too.
+        assert news.is_blackout("BTCUSDT", now=now, asset_class="crypto")
+        # A pair without USD/that currency is clear.
+        assert not news.is_blackout("EURGBP", now=now, asset_class="forex")
+        # Far outside the window is clear.
+        assert not news.is_blackout("EURUSD", now=now + 10 * 3600, asset_class="forex")
+    finally:
+        news._calendar = []
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failures = 0

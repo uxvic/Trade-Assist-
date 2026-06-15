@@ -57,7 +57,7 @@ def evaluate(
         return Signal("no_trade", "Previous 30m candle didn't close bullish", level, conf), None
     conf["prev_30m_bullish"] = True
 
-    if is_blackout(symbol):
+    if is_blackout(symbol, asset_class=asset_class):
         return Signal("no_trade", "High-impact news window — staying out", level, conf), None
     conf["news_clear"] = True
 
