@@ -115,10 +115,14 @@ class ForexProvider(MarketDataProvider):
         last = await asyncio.to_thread(self._last_price, symbol)
         return Quote(symbol=symbol.upper(), last=last, bid=last, ask=last)
 
+    def _ticker(self, symbol: str) -> str:
+        """The Yahoo ticker for a symbol (overridden by the stocks provider)."""
+        return _yahoo_ticker(symbol)
+
     def _last_price(self, symbol: str) -> Decimal:
         import yfinance as yf
 
-        hist = yf.Ticker(_yahoo_ticker(symbol)).history(period="1d", interval="1m")
+        hist = yf.Ticker(self._ticker(symbol)).history(period="1d", interval="1m")
         if hist.empty:
             raise RuntimeError(f"No data for {symbol}")
         return Decimal(str(hist["Close"].iloc[-1]))
@@ -141,7 +145,7 @@ class ForexProvider(MarketDataProvider):
     def _fetch(self, symbol: str, interval: str, period: str, timeframe: Timeframe) -> list[Candle]:
         import yfinance as yf
 
-        df = yf.Ticker(_yahoo_ticker(symbol)).history(period=period, interval=interval)
+        df = yf.Ticker(self._ticker(symbol)).history(period=period, interval=interval)
         if df.empty:
             return []
         candles: list[Candle] = []

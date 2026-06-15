@@ -26,9 +26,20 @@ from app.runtime import get_broker, get_data_provider, reset_broker, save_user_b
 router = APIRouter(prefix="/api/paper", tags=["paper-trading"])
 
 
+# Remember which asset class a symbol was traded under, so live-P&L price
+# refreshes route to the right provider (a bare "AAPL" isn't obviously a stock).
+_ASSET_HINT: dict[str, str] = {}
+
+
 def _infer_asset_class(symbol: str) -> str:
-    """Crypto pairs in our universe quote in USDT; everything else is forex."""
-    return "crypto" if symbol.upper().endswith("USDT") else "forex"
+    if symbol in _ASSET_HINT:
+        return _ASSET_HINT[symbol]
+    s = symbol.upper()
+    if s.endswith("USDT"):
+        return "crypto"
+    if s == "XAUUSD" or len(s) == 6:
+        return "forex"
+    return "stocks"
 
 
 async def _refresh_price(broker, symbol: str, asset_class: str) -> None:
@@ -69,6 +80,7 @@ async def update_price(update: PriceUpdate, user_id: CurrentUser) -> dict:
 @router.post("/orders", response_model=OrderResponse)
 async def place_order(req: PlaceOrderRequest, user_id: CurrentUser) -> OrderResponse:
     broker = get_broker(user_id)
+    _ASSET_HINT[req.symbol] = req.asset_class
     # Price the order off the live market before it touches the engine.
     await _refresh_price(broker, req.symbol, req.asset_class)
     order = await broker.place_order(

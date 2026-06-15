@@ -10,7 +10,14 @@ import { cn } from "@/lib/utils";
 const ASSET_CLASSES = [
   { id: "crypto", label: "Crypto" },
   { id: "forex", label: "Forex" },
+  { id: "stocks", label: "Stocks" },
 ];
+
+const SEARCH_PLACEHOLDER: Record<string, string> = {
+  crypto: "Search coins (BTC, ETH…)",
+  forex: "Search pairs (EUR, GBP…)",
+  stocks: "Search stocks & ETFs (AAPL, SPY…)",
+};
 
 export function InstrumentPicker() {
   const instrument = useAppStore((s) => s.instrument);
@@ -79,7 +86,7 @@ export function InstrumentPicker() {
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={tab === "crypto" ? "Search coins (BTC, ETH…)" : "Search pairs (EUR, GBP…)"}
+                placeholder={SEARCH_PLACEHOLDER[tab] ?? "Search…"}
                 className="h-9 w-full rounded-lg border border-border bg-surface-2 pl-8 pr-3 text-sm text-fg placeholder:text-muted focus:outline-none"
               />
             </div>

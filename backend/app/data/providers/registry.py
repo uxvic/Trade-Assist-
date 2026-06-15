@@ -12,14 +12,19 @@ from functools import lru_cache
 from app.data.providers.base import InstrumentInfo, MarketDataProvider
 from app.data.providers.crypto import BinanceProvider
 from app.data.providers.forex import ForexProvider
+from app.data.providers.stocks import StocksProvider
 
 # Asset classes the UI can pick from, in display order.
-ASSET_CLASSES = ["crypto", "forex"]
+ASSET_CLASSES = ["crypto", "forex", "stocks"]
 
 
 @lru_cache
 def _providers() -> dict[str, MarketDataProvider]:
-    return {"crypto": BinanceProvider(), "forex": ForexProvider()}
+    return {
+        "crypto": BinanceProvider(),
+        "forex": ForexProvider(),
+        "stocks": StocksProvider(),
+    }
 
 
 def get_provider(asset_class: str) -> MarketDataProvider:
