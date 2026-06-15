@@ -25,11 +25,16 @@ _BOT_INTERVAL_SECONDS = 300
 
 
 async def _bot_loop() -> None:
+    from app.notifications.dispatch import flush_email_alerts, maybe_send_digest
     from app.runtime import get_strategy_bot
 
     while True:
         with contextlib.suppress(Exception):
             await get_strategy_bot().tick()
+        with contextlib.suppress(Exception):
+            await flush_email_alerts()  # email new setups/entries/exits (no-op if off)
+        with contextlib.suppress(Exception):
+            await maybe_send_digest()  # once-a-day summary (no-op if off)
         await asyncio.sleep(_BOT_INTERVAL_SECONDS)
 
 

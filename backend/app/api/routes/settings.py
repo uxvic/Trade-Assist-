@@ -10,7 +10,13 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.runtime import ai_configured, set_ai_credentials
+from app.runtime import (
+    ai_configured,
+    email_configured,
+    get_email_config,
+    set_ai_credentials,
+    set_email_credentials,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -34,3 +40,41 @@ async def get_ai_settings() -> AISettingsStatus:
 async def set_ai_settings(req: AISettingsRequest) -> AISettingsStatus:
     set_ai_credentials(req.provider, (req.api_key or "").strip() or None)
     return AISettingsStatus(configured=ai_configured(), provider=req.provider)
+
+
+class EmailSettingsRequest(BaseModel):
+    api_key: str | None = None  # Resend key (held in memory only, never returned)
+    recipient: str | None = None
+    sender: str | None = None
+    digest: bool = True
+
+
+class EmailSettingsStatus(BaseModel):
+    configured: bool
+    recipient: str | None = None
+    digest: bool = True
+
+
+@router.get("/email", response_model=EmailSettingsStatus)
+async def get_email_settings() -> EmailSettingsStatus:
+    cfg = get_email_config()
+    return EmailSettingsStatus(
+        configured=email_configured(),
+        recipient=cfg["recipient"] if cfg else None,
+        digest=bool(cfg["digest"]) if cfg else True,
+    )
+
+
+@router.post("/email", response_model=EmailSettingsStatus)
+async def set_email_settings(req: EmailSettingsRequest) -> EmailSettingsStatus:
+    set_email_credentials(
+        (req.api_key or "").strip() or None,
+        (req.recipient or "").strip() or None,
+        (req.sender or "").strip() or None,
+        req.digest,
+    )
+    return EmailSettingsStatus(
+        configured=email_configured(),
+        recipient=(req.recipient or "").strip() or None,
+        digest=req.digest,
+    )

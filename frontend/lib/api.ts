@@ -436,6 +436,36 @@ export function useSetAIKey() {
   });
 }
 
+export interface EmailSettings {
+  configured: boolean;
+  recipient: string | null;
+  digest: boolean;
+}
+
+export function useEmailSettings() {
+  return useQuery({
+    queryKey: ["email-settings"],
+    queryFn: () => http<EmailSettings>("/api/settings/email"),
+  });
+}
+
+export function useSetEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      api_key?: string;
+      recipient?: string;
+      sender?: string;
+      digest?: boolean;
+    }) =>
+      http<EmailSettings>("/api/settings/email", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-settings"] }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Coach streaming (SSE)
 // ---------------------------------------------------------------------------

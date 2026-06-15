@@ -29,6 +29,30 @@ def set_ai_credentials(provider: str | None, api_key: str | None) -> None:
     _ai_override["api_key"] = api_key
 
 
+# Email notifications (runtime, in-memory — same local-only policy as the AI key).
+_email: dict[str, object] = {
+    "provider": "resend",
+    "api_key": None,
+    "sender": None,
+    "recipient": None,
+    "digest": True,
+}
+
+
+def set_email_credentials(
+    api_key: str | None, recipient: str | None, sender: str | None = None, digest: bool = True
+) -> None:
+    _email.update(api_key=api_key, recipient=recipient, sender=sender, digest=digest)
+
+
+def email_configured() -> bool:
+    return bool(_email["api_key"] and _email["recipient"])
+
+
+def get_email_config() -> dict | None:
+    return dict(_email) if email_configured() else None
+
+
 # How directive the coach is: "reads" | "suggestions" | "copilot".
 _coach_intensity = {"value": "reads"}
 
