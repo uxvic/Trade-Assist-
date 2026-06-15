@@ -1,11 +1,18 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Bot, Minus, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, Minus, Sparkles, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { type ChartHandle, KLineChart, topLevels } from "@/components/chart/KLineChart";
 import { Button } from "@/components/ui/button";
-import { type BotNote, fetchBotCommentary, useBotFeed, useCompare } from "@/lib/api";
+import {
+  type BotNote,
+  fetchBotCommentary,
+  useAccount,
+  useBotFeed,
+  useCompare,
+} from "@/lib/api";
 import { fmtPrice, fmtSignedUSD, fmtUSD } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -14,13 +21,38 @@ import { BotFeed } from "./BotFeed";
 
 export function BotConsole() {
   const instrument = useAppStore((s) => s.instrument);
+  const setSuggested = useAppStore((s) => s.setSuggestedTrade);
   const feed = useBotFeed(instrument.assetClass, instrument.symbol);
   const compare = useCompare();
+  const account = useAccount();
   const chartRef = useRef<ChartHandle>(null);
   const [aiNotes, setAiNotes] = useState<BotNote[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
 
   const call = feed.data?.call ?? null;
+
+  // Copy the bot's setup into the user's order ticket (sized to risk ~1%).
+  function tradeThis() {
+    const pt = call?.proposed_trade;
+    if (!pt) return;
+    const equity = account.data ? Number(account.data.equity) : 0;
+    const qty = pt.risk_per_unit > 0 ? (equity * 0.01) / pt.risk_per_unit : 0;
+    const notional = qty > 0 ? Math.max(10, Math.round(qty * pt.entry)) : undefined;
+    setSuggested({
+      symbol: instrument.symbol,
+      asset_class: instrument.assetClass,
+      side: "buy",
+      notional,
+      entry: pt.entry,
+      stop: pt.stop,
+      target: pt.target,
+      rationale: pt.rationale,
+      risk: "Sized to risk ~1% of your account — review before you confirm.",
+    });
+    toast.success("Sent to your ticket", {
+      description: "Review the size and confirm on the right.",
+    });
+  }
 
   // Draw the bot's strongest levels + its proposed trade on the mini "bot's-eye" chart.
   useEffect(() => {
@@ -77,15 +109,23 @@ export function BotConsole() {
         <div className="min-w-0 flex-1">
           {call ? (
             isBuy ? (
-              <div className="flex items-center gap-2 truncate text-sm">
+              <div className="flex items-center gap-2 text-sm">
                 <span className="rounded-md bg-positive/15 px-2 py-0.5 text-xs font-semibold text-positive">
                   BUY setup
                 </span>
-                <span className="truncate tabular text-muted">
+                <span className="hidden truncate tabular text-muted md:inline">
                   entry <span className="text-fg">{fmtPrice(pt!.entry)}</span> · stop{" "}
                   <span className="text-fg">{fmtPrice(pt!.stop)}</span> · target{" "}
                   <span className="text-fg">{fmtPrice(pt!.target)}</span>
                 </span>
+                <Button
+                  size="sm"
+                  variant="positive"
+                  className="ml-auto h-7 shrink-0"
+                  onClick={tradeThis}
+                >
+                  <Zap size={13} /> Trade this
+                </Button>
               </div>
             ) : (
               <div className="truncate text-sm text-muted">
