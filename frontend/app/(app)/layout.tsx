@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { AuthGate } from "@/components/AuthGate";
 import { FeedbackButton } from "@/components/FeedbackButton";
@@ -17,6 +17,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const token = useAppStore((s) => s.token);
   const onboarded = useAppStore((s) => s.onboarded);
   const clearAuth = useAppStore((s) => s.clearAuth);
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => setNavOpen(false), [pathname]);
 
   // Validate a stored token on boot; drop it if the server rejects it.
   useEffect(() => {
@@ -40,9 +44,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar pathname={pathname} />
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <TopBar pathname={pathname} onMenu={() => setNavOpen(true)} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
       <FeedbackButton />

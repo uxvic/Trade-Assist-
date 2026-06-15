@@ -15,11 +15,21 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-surface/50 p-3">
+    <>
+      {open && (
+        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} aria-hidden />
+      )}
+      <aside
+        className={cn(
+          "flex w-60 shrink-0 flex-col border-r border-border bg-surface p-3 md:bg-surface/50",
+          "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:shadow-soft max-md:transition-transform",
+          open ? "max-md:translate-x-0" : "max-md:-translate-x-full"
+        )}
+      >
       <Link href="/home" className="flex items-center gap-2.5 px-2 py-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-fg">
           <GraduationCap size={18} />
@@ -60,6 +70,7 @@ export function Sidebar() {
           Everything here is simulated. Educational only — not financial advice.
         </p>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -83,11 +83,11 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Body: split chart/bot column (hero) + slim rail */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Body: split chart/bot column (hero) + slim rail; stacks on mobile */}
+      <div className="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col lg:overflow-hidden">
           {/* Top ~60%: your chart */}
-          <div className="relative min-h-0 flex-[3]">
+          <div className="relative flex-[3] max-lg:h-[60vh] lg:min-h-0">
             <KLineChart
               ref={chartRef}
               assetClass={instrument.assetClass}
@@ -114,13 +114,13 @@ export default function TradePage() {
           </div>
 
           {/* Bottom ~40%: the bot, live */}
-          <div className="min-h-0 flex-[2] border-t border-border">
+          <div className="flex-[2] border-t border-border max-lg:h-[80vh] lg:min-h-0">
             <BotConsole />
           </div>
         </div>
 
         {/* Right rail: order ticket + positions + coach */}
-        <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border">
+        <div className="flex w-full shrink-0 flex-col border-t border-border lg:w-[340px] lg:overflow-y-auto lg:border-l lg:border-t-0">
           <div className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-fg">Place a practice trade</h3>
             <OrderTicket
