@@ -137,6 +137,16 @@ export async function fetchMe(): Promise<AuthUser> {
   return http<AuthUser>("/api/auth/me");
 }
 
+export function useSendFeedback() {
+  return useMutation({
+    mutationFn: (input: { message: string; page: string }) =>
+      http<{ status: string }>("/api/feedback", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------

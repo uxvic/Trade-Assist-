@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     created_at    INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts         INTEGER NOT NULL,
+    user_id    INTEGER,
+    email      TEXT,
+    page       TEXT,
+    message    TEXT NOT NULL
+);
 """
 
 EVENTS_KEEP = 5000  # prune ceiling so the file can't grow without bound
@@ -260,6 +269,30 @@ class Store:
             return dict(row) if row else None
         except sqlite3.Error:
             return None
+
+    # ---- feedback ------------------------------------------------------ #
+    def add_feedback(self, user_id: int | None, email: str | None, page: str, message: str) -> None:
+        try:
+            with self._lock:
+                self._conn.execute(
+                    "INSERT INTO feedback(ts, user_id, email, page, message) VALUES(?,?,?,?,?)",
+                    (int(time.time()), user_id, email, page, message),
+                )
+                self._conn.commit()
+        except sqlite3.Error:
+            pass
+
+    def read_feedback(self, limit: int = 200) -> list[dict]:
+        try:
+            with self._lock:
+                rows = self._conn.execute(
+                    "SELECT ts, user_id, email, page, message FROM feedback "
+                    "ORDER BY id DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.Error:
+            return []
 
 
 @lru_cache

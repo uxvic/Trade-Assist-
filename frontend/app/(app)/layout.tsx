@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 import { AuthGate } from "@/components/AuthGate";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -44,6 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <TopBar pathname={pathname} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+      <FeedbackButton />
     </div>
   );
 }
