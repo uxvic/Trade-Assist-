@@ -1,20 +1,36 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 
+import { AuthGate } from "@/components/AuthGate";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
+import { fetchMe } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hasHydrated = useAppStore((s) => s.hasHydrated);
+  const token = useAppStore((s) => s.token);
   const onboarded = useAppStore((s) => s.onboarded);
+  const clearAuth = useAppStore((s) => s.clearAuth);
+
+  // Validate a stored token on boot; drop it if the server rejects it.
+  useEffect(() => {
+    if (hasHydrated && token) {
+      fetchMe().catch(() => clearAuth());
+    }
+  }, [hasHydrated, token, clearAuth]);
 
   // Wait for the persisted store to load to avoid a flash / hydration mismatch.
   if (!hasHydrated) {
     return <div className="min-h-screen bg-bg" />;
+  }
+
+  if (!token) {
+    return <AuthGate />;
   }
 
   if (!onboarded) {

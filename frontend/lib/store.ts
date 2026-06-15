@@ -22,8 +22,15 @@ const DEFAULT_INSTRUMENT: Instrument = {
   assetClass: "crypto",
 };
 
+export interface AuthUser {
+  id: number;
+  email: string;
+}
+
 interface AppState {
   hasHydrated: boolean;
+  token: string | null;
+  user: AuthUser | null;
   onboarded: boolean;
   name: string;
   level: string; // "new" | "rusty" | "intermediate"
@@ -39,6 +46,8 @@ interface AppState {
   desktopAlerts: boolean; // fire browser notifications on new bot events
 
   setHydrated: () => void;
+  setAuth: (token: string, user: AuthUser) => void;
+  clearAuth: () => void;
   completeOnboarding: (name: string, level?: string) => void;
   resetOnboarding: () => void;
   setInstrument: (instrument: Instrument) => void;
@@ -57,6 +66,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       hasHydrated: false,
+      token: null,
+      user: null,
       onboarded: false,
       name: "",
       level: "rusty",
@@ -72,6 +83,8 @@ export const useAppStore = create<AppState>()(
       desktopAlerts: false,
 
       setHydrated: () => set({ hasHydrated: true }),
+      setAuth: (token, user) => set({ token, user }),
+      clearAuth: () => set({ token: null, user: null }),
       completeOnboarding: (name, level) =>
         set({ onboarded: true, name: name.trim() || "there", ...(level ? { level } : {}) }),
       resetOnboarding: () => set({ onboarded: false }),
@@ -112,6 +125,8 @@ export const useAppStore = create<AppState>()(
       // Don't persist transient runtime state (a stale suggestion shouldn't
       // re-appear on reload).
       partialize: (s) => ({
+        token: s.token,
+        user: s.user,
         onboarded: s.onboarded,
         name: s.name,
         level: s.level,

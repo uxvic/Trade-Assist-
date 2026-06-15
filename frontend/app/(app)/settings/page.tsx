@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Check, KeyRound, RefreshCw, Sparkles } from "lucide-react";
+import { Bell, Check, KeyRound, LogOut, RefreshCw, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -24,6 +25,15 @@ export default function SettingsPage() {
   const resetOnboarding = useAppStore((s) => s.resetOnboarding);
   const email = useEmailSettings();
   const setEmail = useSetEmail();
+  const user = useAppStore((s) => s.user);
+  const clearAuth = useAppStore((s) => s.clearAuth);
+  const qc = useQueryClient();
+
+  function signOut() {
+    void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    qc.clear();
+    clearAuth();
+  }
 
   const [apiKey, setApiKey] = useState("");
   const [emailKey, setEmailKey] = useState("");
@@ -207,6 +217,25 @@ export default function SettingsPage() {
           <p className="mt-1 text-sm text-muted">See the intro screens again.</p>
           <Button variant="secondary" className="mt-4" onClick={resetOnboarding}>
             Replay the welcome
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Account */}
+      <Card className="mt-4">
+        <CardContent>
+          <h3 className="text-base font-semibold text-fg">Account</h3>
+          <p className="mt-1 text-sm text-muted">
+            {user ? (
+              <>
+                Signed in as <span className="text-fg">{user.email}</span>.
+              </>
+            ) : (
+              "Signed in."
+            )}
+          </p>
+          <Button variant="secondary" className="mt-4" onClick={signOut}>
+            <LogOut size={16} /> Sign out
           </Button>
         </CardContent>
       </Card>

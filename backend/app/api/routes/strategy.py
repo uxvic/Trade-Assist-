@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.schemas import AccountResponse, PositionResponse
+from app.auth.deps import CurrentUser, current_user_id
 from app.data.providers.registry import get_provider
 from app.persistence.store import get_store
 from app.runtime import get_bot_broker, get_broker, get_strategy_bot, reset_bot
 from app.strategies.engine import analyze
 from app.strategies.second_opinion import get_bot_commentary, get_second_opinion
 
-router = APIRouter(prefix="/api/strategy", tags=["strategy"])
+# Every strategy route requires a logged-in user (the app is gated end to end);
+# the bot itself is shared, so most routes don't need the user_id.
+router = APIRouter(
+    prefix="/api/strategy", tags=["strategy"], dependencies=[Depends(current_user_id)]
+)
 
 
 @router.get("/analyze")
@@ -115,8 +120,8 @@ async def bot_reset() -> dict:
 
 
 @router.get("/compare")
-async def compare() -> dict:
-    user = await get_broker().get_account()
+async def compare(user_id: CurrentUser) -> dict:
+    user = await get_broker(user_id).get_account()
     bot_acct = await get_bot_broker().get_account()
     start = 100_000.0
     return {

@@ -59,6 +59,13 @@ CREATE TABLE IF NOT EXISTS state_snapshots (
     payload     TEXT NOT NULL,
     updated_at  INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    email         TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at    INTEGER NOT NULL
+);
 """
 
 EVENTS_KEEP = 5000  # prune ceiling so the file can't grow without bound
@@ -215,6 +222,44 @@ class Store:
                 self._conn.commit()
         except sqlite3.Error:
             pass
+
+    # ---- users --------------------------------------------------------- #
+    def create_user(self, email: str, password_hash: str) -> dict | None:
+        """Insert a user; returns the row, or None if the email already exists."""
+        try:
+            with self._lock:
+                cur = self._conn.execute(
+                    "INSERT INTO users(email, password_hash, created_at) VALUES(?,?,?)",
+                    (email.strip().lower(), password_hash, int(time.time())),
+                )
+                self._conn.commit()
+                uid = cur.lastrowid
+            return self.get_user_by_id(uid)
+        except sqlite3.IntegrityError:
+            return None  # duplicate email
+        except sqlite3.Error:
+            return None
+
+    def get_user_by_email(self, email: str) -> dict | None:
+        try:
+            with self._lock:
+                row = self._conn.execute(
+                    "SELECT id, email, password_hash, created_at FROM users WHERE email=?",
+                    (email.strip().lower(),),
+                ).fetchone()
+            return dict(row) if row else None
+        except sqlite3.Error:
+            return None
+
+    def get_user_by_id(self, uid: int) -> dict | None:
+        try:
+            with self._lock:
+                row = self._conn.execute(
+                    "SELECT id, email, password_hash, created_at FROM users WHERE id=?", (uid,)
+                ).fetchone()
+            return dict(row) if row else None
+        except sqlite3.Error:
+            return None
 
 
 @lru_cache

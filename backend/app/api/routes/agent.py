@@ -18,7 +18,8 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.prompts import observe_prompt
 from app.api.schemas import ChatRequest, ObserveRequest
-from app.runtime import ai_configured, get_agent_service, set_coach_intensity
+from app.auth.deps import CurrentUser
+from app.runtime import ai_configured, get_agent_service
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -43,16 +44,14 @@ def _sse(service, message, history):
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest) -> StreamingResponse:
+async def chat(req: ChatRequest, user_id: CurrentUser) -> StreamingResponse:
     _require_ai()
-    set_coach_intensity(req.intensity)
-    return _sse(get_agent_service(), req.message, req.history)
+    return _sse(get_agent_service(user_id, intensity=req.intensity), req.message, req.history)
 
 
 @router.post("/observe")
-async def observe(req: ObserveRequest) -> StreamingResponse:
+async def observe(req: ObserveRequest, user_id: CurrentUser) -> StreamingResponse:
     """A proactive expert 'read' of whatever the user is currently viewing."""
     _require_ai()
-    set_coach_intensity(req.intensity)
     message = observe_prompt(req.name or req.symbol, req.symbol, req.asset_class, req.timeframe)
-    return _sse(get_agent_service(), message, None)
+    return _sse(get_agent_service(user_id, intensity=req.intensity), message, None)

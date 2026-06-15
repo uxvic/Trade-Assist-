@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import agent, health, market, paper, strategy
+from app.api.routes import agent, auth, health, market, paper, strategy
 from app.api.routes import settings as settings_routes
 from app.config import get_settings
 
@@ -39,17 +39,15 @@ async def _bot_loop() -> None:
 
 
 def _restore_state() -> None:
-    """Rehydrate the in-memory engine from the SQLite store on boot — so the
-    bot's trades/notes/P&L and the user's account survive restarts. Must run
-    before the bot loop starts, or the first tick would overwrite the snapshot.
+    """Rehydrate the shared bot from the SQLite store on boot — so its
+    trades/notes/P&L survive restarts. Must run before the bot loop starts, or
+    the first tick would overwrite the snapshot. Per-user accounts hydrate
+    lazily on their owner's first authenticated request (see runtime.get_broker).
     """
     from app.persistence.store import get_store
-    from app.runtime import get_bot_broker, get_broker, get_strategy_bot
+    from app.runtime import get_bot_broker, get_strategy_bot
 
     store = get_store()
-    user_snap = store.load_snapshot("user_broker")
-    if user_snap:
-        get_broker().load_snapshot(user_snap)
     bot_snap = store.load_snapshot("bot_broker")
     if bot_snap:
         get_bot_broker().load_snapshot(bot_snap)
@@ -80,6 +78,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(market.router)
 app.include_router(paper.router)
 app.include_router(agent.router)

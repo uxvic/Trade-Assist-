@@ -8,6 +8,8 @@ means routes and the agent never depend on that being the case.
 
 from __future__ import annotations
 
+import threading
+from collections import OrderedDict
 from functools import lru_cache
 
 from app.agent.prompts import coach_system_prompt
@@ -53,17 +55,9 @@ def get_email_config() -> dict | None:
     return dict(_email) if email_configured() else None
 
 
-# How directive the coach is: "reads" | "suggestions" | "copilot".
-_coach_intensity = {"value": "reads"}
-
-
-def set_coach_intensity(value: str | None) -> None:
-    if value in ("reads", "suggestions", "copilot"):
-        _coach_intensity["value"] = value
-
-
-def get_coach_intensity() -> str:
-    return _coach_intensity["value"]
+# A sentinel "house" account for the shared bot's own AI reads (second opinion,
+# colour commentary) — they only stream text, never trade a user's account.
+HOUSE_USER_ID = 0
 
 
 def _active_provider() -> str:
@@ -79,39 +73,94 @@ def ai_configured() -> bool:
     return True
 
 
-@lru_cache
-def get_broker() -> PaperBroker:
-    settings = get_settings()
-    return PaperBroker(starting_cash=str(settings.paper_starting_cash))
+# --------------------------------------------------------------------------- #
+# Per-user accounts. Each logged-in user gets their own PaperBroker (and a tool
+# registry bound to it), kept in a bounded LRU so memory stays sane as testers
+# sign up. State is durable, so evicting an idle user's in-memory broker is
+# lossless — it re-hydrates lazily from the SQLite snapshot on next request.
+# --------------------------------------------------------------------------- #
+_MAX_USERS_CACHED = 256
+_user_brokers: OrderedDict[int, PaperBroker] = OrderedDict()
+_user_registries: OrderedDict[int, ToolRegistry] = OrderedDict()
+_user_lock = threading.Lock()
 
 
-def reset_broker() -> PaperBroker:
-    """Replace the demo account with a fresh one."""
+def _scope(user_id: int) -> str:
+    return f"{user_id}:user_broker"
+
+
+def _evict(cache: OrderedDict) -> None:
+    while len(cache) > _MAX_USERS_CACHED:
+        cache.popitem(last=False)
+
+
+def get_broker(user_id: int) -> PaperBroker:
     from app.persistence.store import get_store
 
-    get_store().clear_scope("user_broker")  # don't resurrect the old account on restart
-    get_broker.cache_clear()
-    get_tool_registry.cache_clear()
-    return get_broker()
+    with _user_lock:
+        if user_id in _user_brokers:
+            _user_brokers.move_to_end(user_id)
+            return _user_brokers[user_id]
+    # Build + lazily restore outside the lock (snapshot load can touch disk).
+    settings = get_settings()
+    broker = PaperBroker(
+        account_id=f"user-{user_id}", starting_cash=str(settings.paper_starting_cash)
+    )
+    snap = get_store().load_snapshot(_scope(user_id))
+    if snap:
+        broker.load_snapshot(snap)
+    with _user_lock:
+        _user_brokers[user_id] = broker
+        _user_brokers.move_to_end(user_id)
+        _evict(_user_brokers)
+        return _user_brokers[user_id]
+
+
+def get_tool_registry(user_id: int) -> ToolRegistry:
+    with _user_lock:
+        if user_id in _user_registries:
+            _user_registries.move_to_end(user_id)
+            return _user_registries[user_id]
+    reg = build_default_registry(get_broker(user_id))  # tools bound to THIS user's broker
+    with _user_lock:
+        _user_registries[user_id] = reg
+        _user_registries.move_to_end(user_id)
+        _evict(_user_registries)
+        return _user_registries[user_id]
+
+
+def save_user_broker(user_id: int) -> None:
+    """Persist a user's account (best-effort)."""
+    from app.persistence.store import get_store
+
+    get_store().save_snapshot(_scope(user_id), get_broker(user_id).to_snapshot())
+
+
+def reset_broker(user_id: int) -> PaperBroker:
+    """Replace this user's account with a fresh one."""
+    from app.persistence.store import get_store
+
+    get_store().clear_scope(_scope(user_id))
+    with _user_lock:
+        _user_brokers.pop(user_id, None)
+        _user_registries.pop(user_id, None)  # registry holds a ref to the old broker
+    return get_broker(user_id)
 
 
 def get_data_provider(asset_class: str = "crypto") -> MarketDataProvider:
     return get_provider(asset_class)
 
 
-@lru_cache
-def get_tool_registry() -> ToolRegistry:
-    return build_default_registry(get_broker())
-
-
-def get_agent_service(system: str | None = None) -> AgentService:
+def get_agent_service(
+    user_id: int, intensity: str | None = None, system: str | None = None
+) -> AgentService:
     settings = get_settings()
     return build_agent_service(
         provider=_active_provider(),
-        registry=get_tool_registry(),
+        registry=get_tool_registry(user_id),
         model=settings.agent_model,
         api_key=_ai_override["api_key"] or settings.anthropic_api_key,
-        system=system or coach_system_prompt(get_coach_intensity()),
+        system=system or coach_system_prompt(intensity or "reads"),
     )
 
 

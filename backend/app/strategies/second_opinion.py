@@ -14,12 +14,12 @@ _VERDICTS = ("AGREE", "WAIT", "DISAGREE")
 
 async def get_second_opinion(symbol: str, asset_class: str, analysis: Analysis) -> dict:
     from app.agent.prompts import SECOND_OPINION_SYSTEM, second_opinion_message
-    from app.runtime import ai_configured, get_agent_service
+    from app.runtime import HOUSE_USER_ID, ai_configured, get_agent_service
 
     if not ai_configured():
         return {"market_read": None, "agrees_with_bot": None, "available": False}
 
-    service = get_agent_service(system=SECOND_OPINION_SYSTEM)
+    service = get_agent_service(HOUSE_USER_ID, system=SECOND_OPINION_SYSTEM)
     message = second_opinion_message(symbol, asset_class, analysis)
 
     text = ""
@@ -52,12 +52,12 @@ async def get_bot_commentary(
 ) -> dict:
     """On-demand AI colour commentary on the bot's live read (token-gated)."""
     from app.agent.prompts import BOT_COMMENTARY_SYSTEM, bot_commentary_message
-    from app.runtime import ai_configured, get_agent_service
+    from app.runtime import HOUSE_USER_ID, ai_configured, get_agent_service
 
     if not ai_configured():
         return {"commentary": None, "available": False}
 
-    service = get_agent_service(system=BOT_COMMENTARY_SYSTEM)
+    service = get_agent_service(HOUSE_USER_ID, system=BOT_COMMENTARY_SYSTEM)
     message = bot_commentary_message(symbol, asset_class, analysis, notes)
 
     text = ""

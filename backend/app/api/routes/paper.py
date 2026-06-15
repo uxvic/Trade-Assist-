@@ -18,18 +18,12 @@ from app.api.schemas import (
     PositionResponse,
     PriceUpdate,
 )
+from app.auth.deps import CurrentUser
 from app.domain.enums import OrderSide, OrderType
 from app.domain.trading import Order, OrderRequest
-from app.runtime import get_broker, get_data_provider, reset_broker
+from app.runtime import get_broker, get_data_provider, reset_broker, save_user_broker
 
 router = APIRouter(prefix="/api/paper", tags=["paper-trading"])
-
-
-def _save_user_account() -> None:
-    """Persist the user's account so it survives restarts (best-effort)."""
-    from app.persistence.store import get_store
-
-    get_store().save_snapshot("user_broker", get_broker().to_snapshot())
 
 
 def _infer_asset_class(symbol: str) -> str:
@@ -37,7 +31,7 @@ def _infer_asset_class(symbol: str) -> str:
     return "crypto" if symbol.upper().endswith("USDT") else "forex"
 
 
-async def _refresh_price(symbol: str, asset_class: str) -> None:
+async def _refresh_price(broker, symbol: str, asset_class: str) -> None:
     """Pull the latest live price so paper orders fill at the real market price.
 
     Network/upstream errors are swallowed: if no price is available the engine
@@ -46,7 +40,7 @@ async def _refresh_price(symbol: str, asset_class: str) -> None:
     """
     try:
         quote = await get_data_provider(asset_class).get_quote(symbol)
-        get_broker().update_price(symbol, quote.last)
+        broker.update_price(symbol, quote.last)
     except Exception:  # noqa: BLE001
         pass
 
@@ -67,16 +61,17 @@ def _order_to_response(order: Order) -> OrderResponse:
 
 
 @router.post("/price")
-async def update_price(update: PriceUpdate) -> dict:
-    fills = get_broker().update_price(update.symbol, update.price)
+async def update_price(update: PriceUpdate, user_id: CurrentUser) -> dict:
+    fills = get_broker(user_id).update_price(update.symbol, update.price)
     return {"symbol": update.symbol, "price": str(update.price), "triggered_fills": len(fills)}
 
 
 @router.post("/orders", response_model=OrderResponse)
-async def place_order(req: PlaceOrderRequest) -> OrderResponse:
+async def place_order(req: PlaceOrderRequest, user_id: CurrentUser) -> OrderResponse:
+    broker = get_broker(user_id)
     # Price the order off the live market before it touches the engine.
-    await _refresh_price(req.symbol, req.asset_class)
-    order = await get_broker().place_order(
+    await _refresh_price(broker, req.symbol, req.asset_class)
+    order = await broker.place_order(
         OrderRequest(
             symbol=req.symbol,
             side=OrderSide(req.side),
@@ -87,18 +82,18 @@ async def place_order(req: PlaceOrderRequest) -> OrderResponse:
             stop_price=Decimal(req.stop_price) if req.stop_price is not None else None,
         )
     )
-    _save_user_account()
+    save_user_broker(user_id)
     return _order_to_response(order)
 
 
 @router.get("/orders", response_model=list[OrderResponse])
-async def list_orders() -> list[OrderResponse]:
-    return [_order_to_response(o) for o in await get_broker().get_orders()]
+async def list_orders(user_id: CurrentUser) -> list[OrderResponse]:
+    return [_order_to_response(o) for o in await get_broker(user_id).get_orders()]
 
 
 @router.get("/account", response_model=AccountResponse)
-async def account() -> AccountResponse:
-    a = await get_broker().get_account()
+async def account(user_id: CurrentUser) -> AccountResponse:
+    a = await get_broker(user_id).get_account()
     return AccountResponse(
         account_id=a.account_id,
         cash=a.cash,
@@ -109,11 +104,11 @@ async def account() -> AccountResponse:
 
 
 @router.get("/positions", response_model=list[PositionResponse])
-async def positions() -> list[PositionResponse]:
-    broker = get_broker()
+async def positions(user_id: CurrentUser) -> list[PositionResponse]:
+    broker = get_broker(user_id)
     # Mark open positions to the latest live price so P&L is current.
     for pos in await broker.get_positions():
-        await _refresh_price(pos.symbol, _infer_asset_class(pos.symbol))
+        await _refresh_price(broker, pos.symbol, _infer_asset_class(pos.symbol))
     return [
         PositionResponse(
             symbol=p.symbol,
@@ -128,8 +123,8 @@ async def positions() -> list[PositionResponse]:
 
 
 @router.post("/reset")
-async def reset() -> dict:
+async def reset(user_id: CurrentUser) -> dict:
     """Start over with a fresh practice account."""
-    broker = reset_broker()
+    broker = reset_broker(user_id)
     account = await broker.get_account()
     return {"status": "reset", "cash": str(account.cash)}

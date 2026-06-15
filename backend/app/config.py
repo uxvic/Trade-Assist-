@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Durability — zero-config SQLite file (mount ./data as a volume to deploy).
     sqlite_path: str = "./data/trade_assist.db"
 
+    # Auth — HMAC secret for signing session tokens. MUST be overridden in any
+    # shared/tunnel deployment (a random value); the default is dev-only.
+    auth_secret: str = "dev-insecure-change-me"
+
     # Web
     cors_origins: list[str] = ["http://localhost:3000"]
 

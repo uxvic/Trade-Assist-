@@ -6,6 +6,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { type AuthUser, useAppStore } from "./store";
+
+/** The bearer token + a 401 handler, shared by http() and the SSE stream. */
+function authHeaders(): Record<string, string> {
+  const token = useAppStore.getState().token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -85,9 +93,12 @@ export interface AISettings {
 // ---------------------------------------------------------------------------
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
-    headers: { "content-type": "application/json" },
     ...init,
+    headers: { "content-type": "application/json", ...authHeaders(), ...init?.headers },
   });
+  if (res.status === 401 && !path.startsWith("/api/auth/")) {
+    useAppStore.getState().clearAuth(); // session expired → back to the login gate
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -98,6 +109,32 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail);
   }
   return res.json() as Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export function useSignup() {
+  return useMutation({
+    mutationFn: (input: { email: string; password: string }) =>
+      http<AuthResponse>("/api/auth/signup", { method: "POST", body: JSON.stringify(input) }),
+  });
+}
+
+export function useLogin() {
+  return useMutation({
+    mutationFn: (input: { email: string; password: string }) =>
+      http<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(input) }),
+  });
+}
+
+export async function fetchMe(): Promise<AuthUser> {
+  return http<AuthUser>("/api/auth/me");
 }
 
 // ---------------------------------------------------------------------------
@@ -498,11 +535,16 @@ async function* _streamSSE(
 ): AsyncGenerator<AgentEvent> {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
     signal,
   });
 
+  if (res.status === 401) {
+    useAppStore.getState().clearAuth();
+    yield { type: "error", message: "Your session expired — please sign in again." };
+    return;
+  }
   if (res.status === 503) {
     yield { type: "no_key" };
     return;
