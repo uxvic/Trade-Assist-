@@ -7,6 +7,7 @@ import { type ChartHandle, KLineChart, topLevels } from "@/components/chart/KLin
 import { ChartCoachPopover, type PointContext } from "@/components/coach/ChartCoachPopover";
 import { CoachDock } from "@/components/coach/CoachDock";
 import { SlashAskBar } from "@/components/coach/SlashAskBar";
+import { ForecastPanel } from "@/components/forecast/ForecastPanel";
 import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
@@ -146,6 +147,9 @@ export default function TradePage() {
               </div>
             )}
           </div>
+
+          {/* Honest forecast lens — opt-in, on-demand, never a signal */}
+          <ForecastPanel />
 
           <CoachDock />
         </div>

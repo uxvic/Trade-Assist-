@@ -433,6 +433,48 @@ export function useBotTrades() {
 }
 
 // ---------------------------------------------------------------------------
+// Forecast lens (honest, on-demand — NOT a trading signal)
+// ---------------------------------------------------------------------------
+export interface ForecastPoint {
+  ts: number;
+  value: number;
+}
+
+export interface ForecastScorecard {
+  n: number;
+  directional_acc: number | null; // % of matured forecasts that called direction right
+  beat_naive_pct: number | null; // % that landed closer than "price stays put"
+  verdict: string; // honest, plain-language read on the track record
+}
+
+export interface Forecast {
+  symbol: string;
+  asset_class: string;
+  timeframe: string;
+  as_of: number;
+  made_price: number;
+  horizon: number;
+  history: ForecastPoint[];
+  point: ForecastPoint[]; // median projection
+  lower: ForecastPoint[]; // P10 band
+  upper: ForecastPoint[]; // P90 band
+  scorecard: ForecastScorecard;
+}
+
+/** One-shot probabilistic forecast (loads a heavy model server-side; slow). */
+export async function fetchForecast(
+  assetClass: string,
+  symbol: string,
+  timeframe = "1m",
+  horizon = 24
+): Promise<Forecast> {
+  return http<Forecast>(
+    `/api/forecast?asset_class=${assetClass}&symbol=${symbol}` +
+      `&timeframe=${timeframe}&horizon=${horizon}`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
 export interface PlaceOrderInput {

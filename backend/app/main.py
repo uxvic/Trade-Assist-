@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import agent, auth, feedback, health, market, paper, strategy
+from app.api.routes import agent, auth, feedback, forecast, health, market, paper, strategy
 from app.api.routes import settings as settings_routes
 from app.config import get_settings
 
@@ -85,6 +85,7 @@ app.include_router(agent.router)
 app.include_router(settings_routes.router)
 app.include_router(strategy.router)
 app.include_router(feedback.router)
+app.include_router(forecast.router)
 
 
 @app.get("/", tags=["health"])

@@ -69,6 +69,26 @@ cd backend && python tests/test_paper_broker.py     # or: pytest
 cp .env.example .env && docker compose up
 ```
 
+## Forecast lens (experimental)
+
+On the trade desk there's an opt-in **Forecast** card that runs a time-series
+foundation model (Google's [TimesFM](https://github.com/google-research/timesfm))
+to project the next candles with an uncertainty band. It is **not** a trading
+signal and is never wired into the bot or the order ticket. Every projection is
+paired with a live **accuracy scorecard** — how often the model called direction
+right, and how often it beat a naive "price stays put" guess. The point is
+honest and educational: on liquid markets this lands near a coin flip, which is
+*why we don't trade on predictions*.
+
+Notes:
+
+- It's heavy. `timesfm[torch]` pulls in PyTorch, and the **first forecast
+  downloads ~800 MB of weights** (needs network) and is slow on a laptop CPU.
+- Forecasts run **strictly on demand** (a button), never in the always-on loop,
+  and the model loads lazily — so it can't bog down the rest of the app. If the
+  dependency or weights aren't available, the card degrades to a clean message
+  and everything else keeps working.
+
 ## Safety model
 
 - **Paper-only is structural**, not a flag — there is no real-money code path in v1.

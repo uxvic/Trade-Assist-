@@ -75,6 +75,21 @@ CREATE TABLE IF NOT EXISTS feedback (
     page       TEXT,
     message    TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS forecasts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    symbol      TEXT NOT NULL,
+    timeframe   TEXT NOT NULL,
+    made_price  REAL NOT NULL,
+    target_ts   INTEGER NOT NULL,
+    predicted   REAL NOT NULL,
+    baseline    REAL NOT NULL,
+    realized    REAL,
+    scored      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_forecasts_scored ON forecasts(symbol, scored);
+CREATE INDEX IF NOT EXISTS ix_forecasts_due ON forecasts(scored, target_ts);
 """
 
 EVENTS_KEEP = 5000  # prune ceiling so the file can't grow without bound
@@ -289,6 +304,69 @@ class Store:
                     "SELECT ts, user_id, email, page, message FROM feedback "
                     "ORDER BY id DESC LIMIT ?",
                     (limit,),
+                ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.Error:
+            return []
+
+    # ---- forecasts (the honest "forecast lens" scorecard) -------------- #
+    def add_forecast(
+        self,
+        symbol: str,
+        timeframe: str,
+        made_price: float,
+        target_ts: int,
+        predicted: float,
+        baseline: float,
+    ) -> None:
+        """Record a forecast so it can be scored against reality once it matures."""
+        try:
+            with self._lock:
+                self._conn.execute(
+                    "INSERT INTO forecasts(ts, symbol, timeframe, made_price, target_ts, "
+                    "predicted, baseline) VALUES(?,?,?,?,?,?,?)",
+                    (int(time.time()), symbol, timeframe, float(made_price), int(target_ts),
+                     float(predicted), float(baseline)),
+                )
+                self._conn.commit()
+        except (sqlite3.Error, TypeError, ValueError):
+            pass
+
+    def unscored_forecasts_due(
+        self, symbol: str, timeframe: str, now: int, limit: int = 20
+    ) -> list[dict]:
+        """Matured (target_ts ≤ now) but not-yet-scored forecasts, oldest first."""
+        try:
+            with self._lock:
+                rows = self._conn.execute(
+                    "SELECT id, target_ts, made_price, predicted, baseline FROM forecasts "
+                    "WHERE symbol=? AND timeframe=? AND scored=0 AND target_ts<=? "
+                    "ORDER BY target_ts ASC LIMIT ?",
+                    (symbol, timeframe, int(now), limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
+        except sqlite3.Error:
+            return []
+
+    def score_forecast(self, forecast_id: int, realized: float) -> None:
+        try:
+            with self._lock:
+                self._conn.execute(
+                    "UPDATE forecasts SET realized=?, scored=1 WHERE id=?",
+                    (float(realized), int(forecast_id)),
+                )
+                self._conn.commit()
+        except (sqlite3.Error, TypeError, ValueError):
+            pass
+
+    def scored_forecasts(self, symbol: str, limit: int = 200) -> list[dict]:
+        """Most recent scored forecasts for a symbol (newest first)."""
+        try:
+            with self._lock:
+                rows = self._conn.execute(
+                    "SELECT made_price, predicted, baseline, realized FROM forecasts "
+                    "WHERE symbol=? AND scored=1 ORDER BY id DESC LIMIT ?",
+                    (symbol, limit),
                 ).fetchall()
             return [dict(r) for r in rows]
         except sqlite3.Error:
