@@ -160,10 +160,14 @@ export function OrderTicket({
         size="lg"
         disabled={place.isPending}
         onClick={submit}
+        title={`${side === "buy" ? "Buy" : "Sell"} ${fmtUSD(usd)} of ${name}`}
+        className="w-full"
       >
-        {place.isPending
-          ? "Placing…"
-          : `${side === "buy" ? "Buy" : "Sell"} ${fmtUSD(usd)} of ${name}`}
+        <span className="truncate">
+          {place.isPending
+            ? "Placing…"
+            : `${side === "buy" ? "Buy" : "Sell"} ${fmtUSD(usd)} of ${ticker}`}
+        </span>
       </Button>
       <p className="text-center text-xs text-muted">
         Practice money · checked by your risk manager before it goes through

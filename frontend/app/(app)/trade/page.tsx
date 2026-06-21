@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
@@ -24,6 +24,8 @@ export default function TradePage() {
   const instrument = useAppStore((s) => s.instrument);
   const timeframe = useAppStore((s) => s.timeframe);
   const chartView = useAppStore((s) => s.chartView);
+  const showBotPlan = useAppStore((s) => s.showBotPlan);
+  const toggleBotPlan = useAppStore((s) => s.toggleBotPlan);
   const suggested = useAppStore((s) => s.suggestedTrade);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
   const strategy = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
@@ -56,13 +58,13 @@ export default function TradePage() {
     const chart = chartRef.current;
     if (!chart) return;
     const a = strategy.data;
-    if (a && a.symbol === instrument.symbol) {
+    if (showBotPlan && a && a.symbol === instrument.symbol) {
       chart.drawLevels(topLevels(a.levels, a.current_price, 6));
       chart.drawProposedTrade(a.signal.state === "buy" ? a.proposed_trade : null);
     } else {
       chart.clearStrategy();
     }
-  }, [strategy.data, instrument.symbol, chartView]);
+  }, [strategy.data, instrument.symbol, chartView, showBotPlan]);
 
   const ctxBase = {
     symbol: instrument.symbol,
@@ -82,6 +84,20 @@ export default function TradePage() {
         <div className="flex items-center gap-3">
           <InstrumentPicker />
           <ChartViewToggle />
+          {chartView === "trade" && (
+            <button
+              onClick={toggleBotPlan}
+              title="Show the bot's levels & plan on your chart"
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                showBotPlan
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                  : "border-border bg-surface-2/40 text-muted hover:text-fg"
+              )}
+            >
+              <Bot size={13} /> Bot plan
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {quote.data && (

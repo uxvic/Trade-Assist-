@@ -39,6 +39,7 @@ interface AppState {
   openInstruments: Instrument[];
   timeframe: string;
   chartView: ChartView; // trade chart vs. the AI forecast lens (not persisted)
+  showBotPlan: boolean; // overlay the bot's levels + plan on the trade chart
   coachIntensity: CoachIntensity;
   copilotStyle: CopilotStyle;
   suggestedTrade: TradeProposal | null;
@@ -46,6 +47,7 @@ interface AppState {
   completedLessons: string[];
   lastSeenNotifAt: number; // epoch secs of the newest notification the user has seen
   desktopAlerts: boolean; // fire browser notifications on new bot events
+  sidebarCollapsed: boolean; // minimise the left nav to icons to free up screen
 
   setHydrated: () => void;
   setAuth: (token: string, user: AuthUser) => void;
@@ -56,6 +58,8 @@ interface AppState {
   closeInstrument: (symbol: string) => void;
   setTimeframe: (timeframe: string) => void;
   setChartView: (view: ChartView) => void;
+  toggleBotPlan: () => void;
+  toggleSidebar: () => void;
   setCoachIntensity: (intensity: CoachIntensity) => void;
   setCopilotStyle: (style: CopilotStyle) => void;
   setSuggestedTrade: (trade: TradeProposal | null) => void;
@@ -78,6 +82,7 @@ export const useAppStore = create<AppState>()(
       openInstruments: [DEFAULT_INSTRUMENT],
       timeframe: "1m",
       chartView: "trade",
+      showBotPlan: true,
       coachIntensity: "reads",
       copilotStyle: "panel",
       suggestedTrade: null,
@@ -85,6 +90,7 @@ export const useAppStore = create<AppState>()(
       completedLessons: [],
       lastSeenNotifAt: 0,
       desktopAlerts: false,
+      sidebarCollapsed: false,
 
       setHydrated: () => set({ hasHydrated: true }),
       setAuth: (token, user) => set({ token, user }),
@@ -110,6 +116,8 @@ export const useAppStore = create<AppState>()(
         }),
       setTimeframe: (timeframe) => set({ timeframe }),
       setChartView: (chartView) => set({ chartView }),
+      toggleBotPlan: () => set((s) => ({ showBotPlan: !s.showBotPlan })),
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setCoachIntensity: (coachIntensity) => set({ coachIntensity }),
       setCopilotStyle: (copilotStyle) => set({ copilotStyle }),
       setSuggestedTrade: (suggestedTrade) => set({ suggestedTrade }),
@@ -138,6 +146,8 @@ export const useAppStore = create<AppState>()(
         instrument: s.instrument,
         openInstruments: s.openInstruments,
         timeframe: s.timeframe,
+        showBotPlan: s.showBotPlan,
+        sidebarCollapsed: s.sidebarCollapsed,
         coachIntensity: s.coachIntensity,
         copilotStyle: s.copilotStyle,
         tourSeen: s.tourSeen,
