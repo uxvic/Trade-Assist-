@@ -47,7 +47,7 @@ export function SuggestionsView() {
       <CoachOutput text={stream.output} />
       {stream.proposal?.side && !stream.busy && (
         <div className="flex items-center gap-1.5 text-xs text-primary">
-          <ArrowRight size={13} /> Sent to your order ticket — review & confirm there.
+          <ArrowRight size={13} /> Filled in your order form below — review and place it.
         </div>
       )}
     </div>

@@ -49,8 +49,8 @@ export function BotConsole() {
       rationale: pt.rationale,
       risk: "Sized to risk ~1% of your account — review before you confirm.",
     });
-    toast.success("Sent to your ticket", {
-      description: "Review the size and confirm on the right.",
+    toast.success("Filled in your order form below", {
+      description: "Review the size and place it when you're ready.",
     });
   }
 

@@ -80,7 +80,9 @@ function CoachTab({ chartRef }: { chartRef: RefObject<ChartHandle> }) {
           variant={buy ? "positive" : "destructive"}
           onClick={() => {
             setSuggested(idea);
-            toast.success("Sent to your ticket", { description: "Review and confirm on the right." });
+            toast.success("Filled in your order form below", {
+              description: "Review the amount and place it when you're ready.",
+            });
           }}
         >
           Place order
@@ -124,7 +126,9 @@ function BotTab() {
       rationale: pt.rationale,
       risk: "Sized to risk ~1% of your account — review before you confirm.",
     });
-    toast.success("Sent to your ticket", { description: "Review the size and confirm." });
+    toast.success("Filled in your order form below", {
+      description: "Review the size and place it when you're ready.",
+    });
   }
 
   return (
@@ -217,7 +221,9 @@ function ForecastTab() {
       rationale: `Following the direction of the model's projection (${up ? "up" : "down"} to ~${fmtPrice(end)}).`,
       risk: `From a projection that's been right ${acc ?? "—"}% of the time — not a signal. You choose the size.`,
     });
-    toast.success("Sent to your ticket", { description: "Remember: a projection, not a signal." });
+    toast.success("Filled in your order form below", {
+      description: "Remember: a projection, not a signal — you decide.",
+    });
   }
 
   return (
