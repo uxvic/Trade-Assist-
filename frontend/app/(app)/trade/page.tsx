@@ -11,6 +11,7 @@ import { SlashAskBar } from "@/components/coach/SlashAskBar";
 import { ForecastView } from "@/components/forecast/ForecastView";
 import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentBar } from "@/components/InstrumentBar";
+import { IdeasPanel } from "@/components/IdeasPanel";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
 import { BotPlanOverlay } from "@/components/strategy/BotPlanOverlay";
@@ -26,7 +27,6 @@ export default function TradePage() {
   const chartView = useAppStore((s) => s.chartView);
   const showBotPlan = useAppStore((s) => s.showBotPlan);
   const toggleBotPlan = useAppStore((s) => s.toggleBotPlan);
-  const suggested = useAppStore((s) => s.suggestedTrade);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
   const strategy = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
   const botTrades = useBotTrades();
@@ -38,21 +38,6 @@ export default function TradePage() {
   const [showPositions, setShowPositions] = useState(true);
   // The AI helpers (coach + bot) live in one collapsible drawer, tucked by default.
   const [assistantOpen, setAssistantOpen] = useState(false);
-
-  // The coach draws its thinking (entry/stop/target) right on the chart.
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    if (suggested && (suggested.symbol ?? instrument.symbol) === instrument.symbol) {
-      chart.drawCoachLevels({
-        entry: suggested.entry,
-        stop: suggested.stop,
-        target: suggested.target,
-      });
-    } else {
-      chart.clearCoach();
-    }
-  }, [suggested, instrument.symbol, chartView]);
 
   // Draw the bot's plan — S&R levels + entry/stop/target — as labelled tags on the chart.
   useEffect(() => {
@@ -170,6 +155,9 @@ export default function TradePage() {
 
         {/* Right rail: just the trade — place an order + what you own */}
         <div className="flex w-full shrink-0 flex-col border-t border-border lg:w-[340px] lg:overflow-y-auto lg:border-l lg:border-t-0">
+          <div className="p-4 pb-0">
+            <IdeasPanel chartRef={chartRef} />
+          </div>
           <div className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-fg">Place a practice trade</h3>
             <OrderTicket

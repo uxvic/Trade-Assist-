@@ -15,6 +15,7 @@ export interface Instrument {
 export type CoachIntensity = "reads" | "suggestions" | "copilot";
 export type CopilotStyle = "panel" | "session";
 export type ChartView = "trade" | "forecast";
+export type IdeaTab = "coach" | "bot" | "forecast";
 
 const DEFAULT_INSTRUMENT: Instrument = {
   symbol: "BTCUSDT",
@@ -42,7 +43,9 @@ interface AppState {
   showBotPlan: boolean; // overlay the bot's levels + plan on the trade chart
   coachIntensity: CoachIntensity;
   copilotStyle: CopilotStyle;
-  suggestedTrade: TradeProposal | null;
+  suggestedTrade: TradeProposal | null; // pre-fills the order ticket (set by "Place order")
+  coachIdea: TradeProposal | null; // the coach's latest drafted idea (Ideas panel · Coach tab)
+  ideaTab: IdeaTab; // which Ideas-panel tab is active
   tourSeen: boolean;
   completedLessons: string[];
   lastSeenNotifAt: number; // epoch secs of the newest notification the user has seen
@@ -63,6 +66,8 @@ interface AppState {
   setCoachIntensity: (intensity: CoachIntensity) => void;
   setCopilotStyle: (style: CopilotStyle) => void;
   setSuggestedTrade: (trade: TradeProposal | null) => void;
+  setCoachIdea: (trade: TradeProposal | null) => void;
+  setIdeaTab: (tab: IdeaTab) => void;
   setTourSeen: (seen: boolean) => void;
   completeLesson: (id: string) => void;
   markNotificationsSeen: (ts: number) => void;
@@ -86,6 +91,8 @@ export const useAppStore = create<AppState>()(
       coachIntensity: "reads",
       copilotStyle: "panel",
       suggestedTrade: null,
+      coachIdea: null,
+      ideaTab: "coach",
       tourSeen: false,
       completedLessons: [],
       lastSeenNotifAt: 0,
@@ -102,6 +109,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           instrument,
           suggestedTrade: null,
+          coachIdea: null,
           // New picks land at the front; already-open ones stay put (no reordering).
           openInstruments: s.openInstruments.some((i) => i.symbol === instrument.symbol)
             ? s.openInstruments
@@ -113,7 +121,7 @@ export const useAppStore = create<AppState>()(
           const list = remaining.length ? remaining : [DEFAULT_INSTRUMENT];
           const active =
             s.instrument.symbol === symbol ? list[list.length - 1] : s.instrument;
-          return { openInstruments: list, instrument: active, suggestedTrade: null };
+          return { openInstruments: list, instrument: active, suggestedTrade: null, coachIdea: null };
         }),
       setTimeframe: (timeframe) => set({ timeframe }),
       setChartView: (chartView) => set({ chartView }),
@@ -122,6 +130,8 @@ export const useAppStore = create<AppState>()(
       setCoachIntensity: (coachIntensity) => set({ coachIntensity }),
       setCopilotStyle: (copilotStyle) => set({ copilotStyle }),
       setSuggestedTrade: (suggestedTrade) => set({ suggestedTrade }),
+      setCoachIdea: (coachIdea) => set({ coachIdea }),
+      setIdeaTab: (ideaTab) => set({ ideaTab }),
       setTourSeen: (tourSeen) => set({ tourSeen }),
       completeLesson: (id) =>
         set((s) =>
@@ -155,6 +165,7 @@ export const useAppStore = create<AppState>()(
         completedLessons: s.completedLessons,
         lastSeenNotifAt: s.lastSeenNotifAt,
         desktopAlerts: s.desktopAlerts,
+        ideaTab: s.ideaTab,
       }),
       onRehydrateStorage: () => (state) => state?.setHydrated(),
     }

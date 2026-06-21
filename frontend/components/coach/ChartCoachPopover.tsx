@@ -28,7 +28,7 @@ export function ChartCoachPopover({
   ctx: PointContext;
   onClose: () => void;
 }) {
-  const setSuggested = useAppStore((s) => s.setSuggestedTrade);
+  const setCoachIdea = useAppStore((s) => s.setCoachIdea);
 
   const chat = useCoachChat({
     contextPrefix: () => {
@@ -37,7 +37,7 @@ export function ChartCoachPopover({
       return `On the ${ctx.timeframe} ${ctx.name} (${ctx.symbol}) chart, looking at ${when}${where}: `;
     },
     onProposal: (p) =>
-      setSuggested({ ...p, symbol: p.symbol ?? ctx.symbol, asset_class: p.asset_class ?? ctx.assetClass }),
+      setCoachIdea({ ...p, symbol: p.symbol ?? ctx.symbol, asset_class: p.asset_class ?? ctx.assetClass }),
   });
 
   const left = Math.max(8, Math.min(anchor.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 360));

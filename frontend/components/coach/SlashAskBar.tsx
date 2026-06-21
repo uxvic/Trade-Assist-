@@ -22,7 +22,7 @@ export function SlashAskBar({
   ctx: Omit<PointContext, "time" | "price">;
 }) {
   const [open, setOpen] = useState(false);
-  const setSuggested = useAppStore((s) => s.setSuggestedTrade);
+  const setCoachIdea = useAppStore((s) => s.setCoachIdea);
 
   const chat = useCoachChat({
     contextPrefix: () => {
@@ -31,7 +31,7 @@ export function SlashAskBar({
       return `On the ${ctx.timeframe} ${ctx.name} (${ctx.symbol}) chart${where}: `;
     },
     onProposal: (p) =>
-      setSuggested({ ...p, symbol: p.symbol ?? ctx.symbol, asset_class: p.asset_class ?? ctx.assetClass }),
+      setCoachIdea({ ...p, symbol: p.symbol ?? ctx.symbol, asset_class: p.asset_class ?? ctx.assetClass }),
   });
 
   useEffect(() => {
