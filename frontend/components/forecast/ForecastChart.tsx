@@ -2,7 +2,6 @@
 
 import {
   ColorType,
-  type IChartApi,
   LineStyle,
   type UTCTimestamp,
   createChart,
@@ -33,9 +32,12 @@ function toLine(points: ForecastPoint[]): LinePoint[] {
  */
 export function ForecastChart({ forecast }: { forecast: Forecast }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
 
-  // Create the chart once.
+  // Build the chart AND draw the forecast in one effect, re-running on each new
+  // forecast. Keeping creation + drawing together means teardown is a single
+  // `chart.remove()` — calling `removeSeries` after the chart is already gone
+  // (which happened when this was split across two effects) throws
+  // "Value is undefined".
   useEffect(() => {
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
@@ -58,17 +60,6 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
       },
       crosshair: { mode: 1 },
     });
-    chartRef.current = chart;
-    return () => {
-      chart.remove();
-      chartRef.current = null;
-    };
-  }, []);
-
-  // (Re)draw whenever a fresh forecast arrives.
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
 
     // The anchor stitches "what happened" to "what the model expects".
     const anchor: ForecastPoint = { ts: forecast.as_of, value: forecast.made_price };
@@ -109,10 +100,7 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
     chart.timeScale().fitContent();
 
     return () => {
-      chart.removeSeries(history);
-      chart.removeSeries(upper);
-      chart.removeSeries(lower);
-      chart.removeSeries(median);
+      chart.remove();
     };
   }, [forecast]);
 
