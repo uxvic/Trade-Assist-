@@ -13,6 +13,27 @@ if [ ! -f backend/.venv/bin/activate ]; then
   exit 1
 fi
 
+# Free a port held by a leftover process from a previous run. Without this the
+# backend dies on startup with "[Errno 48] Address already in use", the page
+# still loads against the dead :8000, and sign-up fails with "Internal Server
+# Error". Happens when a past run wasn't fully stopped, or dev/refresh/reset was
+# launched from a second terminal. Best-effort; lsof ships with macOS.
+free_port() {
+  local port="$1" pids
+  pids="$(lsof -ti "tcp:${port}" 2>/dev/null || true)"
+  [ -z "$pids" ] && return 0
+  echo "==> Port ${port} is in use by a previous run — freeing it…"
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
+  sleep 1
+  pids="$(lsof -ti "tcp:${port}" 2>/dev/null || true)"
+  # shellcheck disable=SC2086
+  [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+}
+
+free_port 8000
+free_port 3000
+
 # Stop both child processes when this script exits (Ctrl-C included).
 cleanup() {
   echo ""
