@@ -55,6 +55,19 @@ Two commands. You need [`uv`](https://docs.astral.sh/uv/) and Node 18+ installed
 Then open **http://localhost:3000**. That's the whole app — the frontend proxies
 the API, so it's the only URL you need. Press Ctrl-C in that terminal to stop.
 
+### Seeing the latest changes
+
+After new work is pushed to a branch, get it and restart in one command:
+
+```bash
+# Ctrl-C to stop the app first, then:
+./scripts/refresh.sh <branch-name>   # pulls that branch + restarts the app
+```
+
+It fetches the branch, fast-forwards to the newest commit, and boots the app —
+then refresh your browser at **http://localhost:3000**. You only need to re-run
+`./scripts/setup.sh` again when dependencies change.
+
 To enable the AI coach, open **Settings** in the app and paste an Anthropic
 (Claude) API key — no file editing required. Everything else (live charts,
 practice trading, lessons) works without a key.
