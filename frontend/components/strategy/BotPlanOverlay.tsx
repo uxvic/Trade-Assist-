@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, Info } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { useBotFeed, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
@@ -20,7 +21,17 @@ export function BotPlanOverlay() {
   const { data: a } = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
   const { data: feed } = useBotFeed(instrument.assetClass, instrument.symbol);
 
+  // Re-render every second so the "read Ns ago" ticker stays live.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   if (!show || !a || a.symbol !== instrument.symbol) return null;
+
+  const secsAgo = Math.max(0, Math.floor(Date.now() / 1000 - a.as_of));
+  const ago = secsAgo < 60 ? `${secsAgo}s` : `${Math.floor(secsAgo / 60)}m`;
 
   const pt = a.proposed_trade;
   const buy = a.signal.state === "buy" && !!pt;
@@ -59,6 +70,12 @@ export function BotPlanOverlay() {
           >
             {dir} {(a.trend.confidence * 100).toFixed(0)}%
           </span>
+        </div>
+
+        {/* Live "still watching" indicator */}
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+          <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-positive" />
+          Watching {instrument.ticker} · read {ago} ago
         </div>
 
         {/* Short commentary — always visible */}
