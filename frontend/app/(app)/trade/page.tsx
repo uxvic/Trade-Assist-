@@ -13,6 +13,7 @@ import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentBar } from "@/components/InstrumentBar";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
+import { BotPlanOverlay } from "@/components/strategy/BotPlanOverlay";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
 import { useQuote, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
@@ -132,6 +133,7 @@ export default function TradePage() {
                   }
                 />
                 <SlashAskBar chartRef={chartRef} ctx={ctxBase} />
+                <BotPlanOverlay />
                 {popover && (
                   <ChartCoachPopover
                     anchor={popover.anchor}
