@@ -14,6 +14,7 @@ export interface Instrument {
 
 export type CoachIntensity = "reads" | "suggestions" | "copilot";
 export type CopilotStyle = "panel" | "session";
+export type ChartView = "trade" | "forecast";
 
 const DEFAULT_INSTRUMENT: Instrument = {
   symbol: "BTCUSDT",
@@ -37,6 +38,7 @@ interface AppState {
   instrument: Instrument; // the active tab
   openInstruments: Instrument[];
   timeframe: string;
+  chartView: ChartView; // trade chart vs. the AI forecast lens (not persisted)
   coachIntensity: CoachIntensity;
   copilotStyle: CopilotStyle;
   suggestedTrade: TradeProposal | null;
@@ -53,6 +55,7 @@ interface AppState {
   setInstrument: (instrument: Instrument) => void;
   closeInstrument: (symbol: string) => void;
   setTimeframe: (timeframe: string) => void;
+  setChartView: (view: ChartView) => void;
   setCoachIntensity: (intensity: CoachIntensity) => void;
   setCopilotStyle: (style: CopilotStyle) => void;
   setSuggestedTrade: (trade: TradeProposal | null) => void;
@@ -74,6 +77,7 @@ export const useAppStore = create<AppState>()(
       instrument: DEFAULT_INSTRUMENT,
       openInstruments: [DEFAULT_INSTRUMENT],
       timeframe: "1m",
+      chartView: "trade",
       coachIntensity: "reads",
       copilotStyle: "panel",
       suggestedTrade: null,
@@ -105,6 +109,7 @@ export const useAppStore = create<AppState>()(
           return { openInstruments: list, instrument: active, suggestedTrade: null };
         }),
       setTimeframe: (timeframe) => set({ timeframe }),
+      setChartView: (chartView) => set({ chartView }),
       setCoachIntensity: (coachIntensity) => set({ coachIntensity }),
       setCopilotStyle: (copilotStyle) => set({ copilotStyle }),
       setSuggestedTrade: (suggestedTrade) => set({ suggestedTrade }),

@@ -3,25 +3,27 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { AssistantPanel } from "@/components/AssistantPanel";
 import { type ChartHandle, KLineChart, topLevels } from "@/components/chart/KLineChart";
+import { ChartViewToggle } from "@/components/chart/ChartViewToggle";
 import { ChartCoachPopover, type PointContext } from "@/components/coach/ChartCoachPopover";
-import { CoachDock } from "@/components/coach/CoachDock";
 import { SlashAskBar } from "@/components/coach/SlashAskBar";
-import { ForecastPanel } from "@/components/forecast/ForecastPanel";
+import { ForecastView } from "@/components/forecast/ForecastView";
 import { GuidedTour } from "@/components/GuidedTour";
 import { InstrumentPicker } from "@/components/InstrumentPicker";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PairTabs } from "@/components/PairTabs";
 import { PositionsList } from "@/components/PositionsList";
-import { BotConsole } from "@/components/strategy/BotConsole";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
 import { useQuote, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 export default function TradePage() {
   const instrument = useAppStore((s) => s.instrument);
   const timeframe = useAppStore((s) => s.timeframe);
+  const chartView = useAppStore((s) => s.chartView);
   const suggested = useAppStore((s) => s.suggestedTrade);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
   const strategy = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
@@ -31,6 +33,8 @@ export default function TradePage() {
     null
   );
   const [showPositions, setShowPositions] = useState(true);
+  // The AI helpers (coach + bot) live in one collapsible drawer, tucked by default.
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   // The coach draws its thinking (entry/stop/target) right on the chart.
   useEffect(() => {
@@ -45,7 +49,7 @@ export default function TradePage() {
     } else {
       chart.clearCoach();
     }
-  }, [suggested, instrument.symbol]);
+  }, [suggested, instrument.symbol, chartView]);
 
   // Draw the strategy's S&R levels (decluttered to the strongest near price) + the bot's plan.
   useEffect(() => {
@@ -58,7 +62,7 @@ export default function TradePage() {
     } else {
       chart.clearStrategy();
     }
-  }, [strategy.data, instrument.symbol]);
+  }, [strategy.data, instrument.symbol, chartView]);
 
   const ctxBase = {
     symbol: instrument.symbol,
@@ -75,7 +79,10 @@ export default function TradePage() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-        <InstrumentPicker />
+        <div className="flex items-center gap-3">
+          <InstrumentPicker />
+          <ChartViewToggle />
+        </div>
         <div className="flex items-center gap-3">
           {quote.data && (
             <span className="text-sm font-semibold tabular text-fg">{fmtPrice(quote.data.last)}</span>
@@ -84,43 +91,56 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Body: split chart/bot column (hero) + slim rail; stacks on mobile */}
+      {/* Body: the hero chart (with the AI drawer tucked under it) + a slim trade rail */}
       <div className="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col lg:overflow-hidden">
-          {/* Top ~60%: your chart */}
-          <div className="relative flex-[3] max-lg:h-[60vh] lg:min-h-0">
-            <KLineChart
-              ref={chartRef}
-              assetClass={instrument.assetClass}
-              symbol={instrument.symbol}
-              timeframe={timeframe}
-              onPointClick={(p) =>
-                setPopover({
-                  anchor: { x: p.clientX, y: p.clientY },
-                  ctx: { ...ctxBase, time: p.time, price: p.price },
-                })
-              }
-            />
-            <SlashAskBar chartRef={chartRef} ctx={ctxBase} />
-            {popover && (
-              <ChartCoachPopover
-                anchor={popover.anchor}
-                ctx={popover.ctx}
-                onClose={() => setPopover(null)}
-              />
+          {/* Hero: your trading chart, or the AI forecast lens — dominant by default */}
+          <div
+            className={cn(
+              "relative min-h-0",
+              assistantOpen ? "max-lg:h-[55vh] lg:flex-[3]" : "max-lg:h-[64vh] lg:flex-1"
             )}
-            <div className="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 text-[11px] text-muted">
-              Double-click the chart to ask the coach · press <kbd className="rounded bg-surface-2 px-1">/</kbd> to ask
-            </div>
+          >
+            {chartView === "forecast" ? (
+              <ForecastView />
+            ) : (
+              <>
+                <KLineChart
+                  ref={chartRef}
+                  assetClass={instrument.assetClass}
+                  symbol={instrument.symbol}
+                  timeframe={timeframe}
+                  onPointClick={(p) =>
+                    setPopover({
+                      anchor: { x: p.clientX, y: p.clientY },
+                      ctx: { ...ctxBase, time: p.time, price: p.price },
+                    })
+                  }
+                />
+                <SlashAskBar chartRef={chartRef} ctx={ctxBase} />
+                {popover && (
+                  <ChartCoachPopover
+                    anchor={popover.anchor}
+                    ctx={popover.ctx}
+                    onClose={() => setPopover(null)}
+                  />
+                )}
+                <div className="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 text-[11px] text-muted">
+                  Double-click the chart to ask the coach · press <kbd className="rounded bg-surface-2 px-1">/</kbd> to ask
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Bottom ~40%: the bot, live */}
-          <div className="flex-[2] border-t border-border max-lg:h-[80vh] lg:min-h-0">
-            <BotConsole />
-          </div>
+          {/* The AI helpers, consolidated and tucked away until you want them */}
+          <AssistantPanel
+            open={assistantOpen}
+            onOpenChange={setAssistantOpen}
+            className={assistantOpen ? "max-lg:h-[75vh] lg:flex-[2]" : "shrink-0"}
+          />
         </div>
 
-        {/* Right rail: order ticket + positions + coach */}
+        {/* Right rail: just the trade — place an order + what you own */}
         <div className="flex w-full shrink-0 flex-col border-t border-border lg:w-[340px] lg:overflow-y-auto lg:border-l lg:border-t-0">
           <div className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-fg">Place a practice trade</h3>
@@ -147,11 +167,6 @@ export default function TradePage() {
               </div>
             )}
           </div>
-
-          {/* Honest forecast lens — opt-in, on-demand, never a signal */}
-          <ForecastPanel />
-
-          <CoachDock />
         </div>
       </div>
     </div>
