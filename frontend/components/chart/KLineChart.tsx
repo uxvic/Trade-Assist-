@@ -8,7 +8,8 @@ import {
   useState,
 } from "react";
 
-import { useCandles, useQuote } from "@/lib/api";
+import { useCandles, useQuote, type StrategyAnalysis } from "@/lib/api";
+import { fmtPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import type { Chart, KLineData } from "klinecharts";
@@ -40,6 +41,8 @@ export interface ChartHandle {
   getCrosshair: () => { time: number | null; price: number | null };
   drawLevels: (levels: StrategyLevel[]) => void;
   drawProposedTrade: (t: { entry?: number; stop?: number; target?: number } | null) => void;
+  /** The bot's whole plan as labelled, plain-language tags on the price axis. */
+  drawBotPlan: (analysis: StrategyAnalysis | null) => void;
   clearStrategy: () => void;
 }
 
@@ -117,6 +120,14 @@ const TF_COLORS: Record<string, string> = {
   "1d": "#7C5CFF",
   "4h": "#3FA7FF",
   "1h": "#5BC8AF",
+};
+
+// Plain-language timeframe words for the on-chart level tags.
+const TF_WORDS: Record<string, string> = {
+  "1M": "Monthly",
+  "1d": "Daily",
+  "4h": "4H",
+  "1h": "1H",
 };
 
 export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
@@ -290,6 +301,39 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
           styles: { line: { color }, text: { color } },
         } as never);
         if (typeof id === "string") strategyIdsRef.current.push(id);
+      }
+    },
+    drawBotPlan: (analysis) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      clearStrategy();
+      if (!analysis) return;
+
+      // Each line becomes a `simpleTag`: a level across the pane + a
+      // plain-language label on the price axis (role + price via fmtPrice).
+      const tag = (value: number, text: string, color: string, size = 1) => {
+        const id = chart.createOverlay({
+          name: "simpleTag",
+          points: [{ value }],
+          extendData: text,
+          styles: { line: { color, size }, text: { color } },
+        } as never);
+        if (typeof id === "string") strategyIdsRef.current.push(id);
+      };
+
+      // S&R levels — strongest near price; monthly thickest/amber.
+      for (const lv of topLevels(analysis.levels, analysis.current_price, 6)) {
+        const color = TF_COLORS[lv.source_tf] ?? "#8A93A6";
+        const tf = TF_WORDS[lv.source_tf] ?? lv.source_tf;
+        tag(lv.price, `${tf} ${lv.type} ${fmtPrice(lv.price)}`, color, 1 + Math.round(lv.strength * 2));
+      }
+
+      // The proposed trade (buys-only) as entry / stop / target tags.
+      const pt = analysis.proposed_trade;
+      if (analysis.signal.state === "buy" && pt) {
+        tag(pt.entry, `Buy entry ${fmtPrice(pt.entry)}`, COACH_COLORS.entry);
+        tag(pt.stop, `Stop ${fmtPrice(pt.stop)}`, COACH_COLORS.stop);
+        tag(pt.target, `Target 1:${Math.round(pt.rr)} ${fmtPrice(pt.target)}`, COACH_COLORS.target);
       }
     },
     clearStrategy,

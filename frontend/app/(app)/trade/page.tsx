@@ -4,7 +4,7 @@ import { Bot, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
-import { type ChartHandle, KLineChart, topLevels } from "@/components/chart/KLineChart";
+import { type ChartHandle, KLineChart } from "@/components/chart/KLineChart";
 import { ChartViewToggle } from "@/components/chart/ChartViewToggle";
 import { ChartCoachPopover, type PointContext } from "@/components/coach/ChartCoachPopover";
 import { SlashAskBar } from "@/components/coach/SlashAskBar";
@@ -52,14 +52,13 @@ export default function TradePage() {
     }
   }, [suggested, instrument.symbol, chartView]);
 
-  // Draw the strategy's S&R levels (decluttered to the strongest near price) + the bot's plan.
+  // Draw the bot's plan — S&R levels + entry/stop/target — as labelled tags on the chart.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     const a = strategy.data;
     if (showBotPlan && a && a.symbol === instrument.symbol) {
-      chart.drawLevels(topLevels(a.levels, a.current_price, 6));
-      chart.drawProposedTrade(a.signal.state === "buy" ? a.proposed_trade : null);
+      chart.drawBotPlan(a);
     } else {
       chart.clearStrategy();
     }
