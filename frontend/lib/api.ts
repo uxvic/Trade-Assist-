@@ -91,11 +91,26 @@ export interface AISettings {
 // ---------------------------------------------------------------------------
 // Fetch helper
 // ---------------------------------------------------------------------------
-async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "content-type": "application/json", ...authHeaders(), ...init?.headers },
-  });
+/** Shown when the request can't reach the FastAPI backend at all (the dev proxy
+ *  surfaces a refused connection as a 500 with a non-JSON body). */
+const UNREACHABLE = "Can't reach the server — is the backend running on :8000? Run ./scripts/dev.sh";
+
+async function http<T>(path: string, init?: RequestInit, timeoutMs = 20000): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...init,
+      headers: { "content-type": "application/json", ...authHeaders(), ...init?.headers },
+      // Never hang forever on a dead/slow backend — bound every request.
+      signal: init?.signal ?? AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    // Either our timeout fired or fetch threw (backend down → connection refused).
+    if (e instanceof DOMException && e.name === "TimeoutError") {
+      throw new Error("The server took too long to respond — is the backend running?");
+    }
+    throw new Error(UNREACHABLE);
+  }
   if (res.status === 401 && !path.startsWith("/api/auth/")) {
     useAppStore.getState().clearAuth(); // session expired → back to the login gate
   }
@@ -104,7 +119,10 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       detail = (await res.json()).detail ?? detail;
     } catch {
-      /* ignore */
+      // Non-JSON error body → almost always the Next dev proxy failing to reach
+      // the backend (a refused connection surfaces as a 500). Make it actionable
+      // instead of the cryptic "Internal Server Error".
+      if (res.status >= 500) detail = UNREACHABLE;
     }
     throw new Error(detail);
   }
@@ -286,7 +304,9 @@ export function useStrategyAnalysis(assetClass: string, symbol: string | undefin
 /** One-shot AI second opinion (costs a token call) — triggered by a button. */
 export async function fetchAiRead(assetClass: string, symbol: string): Promise<AiSecondOpinion> {
   const res = await http<StrategyAnalysis>(
-    `/api/strategy/analyze?asset_class=${assetClass}&symbol=${symbol}&include_ai=true`
+    `/api/strategy/analyze?asset_class=${assetClass}&symbol=${symbol}&include_ai=true`,
+    undefined,
+    90000 // an LLM call — give it room before timing out
   );
   return res.ai_second_opinion ?? { market_read: null, agrees_with_bot: null };
 }
@@ -363,7 +383,11 @@ export async function fetchBotCommentary(
   assetClass: string,
   symbol: string
 ): Promise<{ commentary: string | null; available: boolean }> {
-  return http(`/api/strategy/bot/commentary?asset_class=${assetClass}&symbol=${symbol}`);
+  return http(
+    `/api/strategy/bot/commentary?asset_class=${assetClass}&symbol=${symbol}`,
+    undefined,
+    90000 // an LLM call — give it room before timing out
+  );
 }
 
 export interface BotEvent {
@@ -470,7 +494,9 @@ export async function fetchForecast(
 ): Promise<Forecast> {
   return http<Forecast>(
     `/api/forecast?asset_class=${assetClass}&symbol=${symbol}` +
-      `&timeframe=${timeframe}&horizon=${horizon}`
+      `&timeframe=${timeframe}&horizon=${horizon}`,
+    undefined,
+    90000 // loads a heavy model server-side — give it room before timing out
   );
 }
 
