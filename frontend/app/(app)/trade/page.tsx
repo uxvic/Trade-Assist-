@@ -15,7 +15,7 @@ import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
 import { BotPlanOverlay } from "@/components/strategy/BotPlanOverlay";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
-import { useQuote, useStrategyAnalysis } from "@/lib/api";
+import { useBotTrades, useQuote, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ export default function TradePage() {
   const suggested = useAppStore((s) => s.suggestedTrade);
   const quote = useQuote(instrument.assetClass, instrument.symbol);
   const strategy = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
+  const botTrades = useBotTrades();
 
   const chartRef = useRef<ChartHandle>(null);
   const [popover, setPopover] = useState<{ anchor: { x: number; y: number }; ctx: PointContext } | null>(
@@ -64,6 +65,17 @@ export default function TradePage() {
       chart.clearStrategy();
     }
   }, [strategy.data, instrument.symbol, chartView, showBotPlan]);
+
+  // Mark where the bot actually bought and sold this symbol — watch it trade.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    if (showBotPlan && botTrades.data) {
+      chart.drawBotTrades(botTrades.data.trades);
+    } else {
+      chart.clearBotTrades();
+    }
+  }, [botTrades.data, instrument.symbol, chartView, showBotPlan]);
 
   const ctxBase = {
     symbol: instrument.symbol,

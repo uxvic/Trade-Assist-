@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-import { useCandles, useQuote, type StrategyAnalysis } from "@/lib/api";
+import { useCandles, useQuote, type BotTrade, type StrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +44,9 @@ export interface ChartHandle {
   /** The bot's whole plan as labelled, plain-language tags on the price axis. */
   drawBotPlan: (analysis: StrategyAnalysis | null) => void;
   clearStrategy: () => void;
+  /** The bot's real trades on this symbol, marked where it bought and sold. */
+  drawBotTrades: (trades: BotTrade[]) => void;
+  clearBotTrades: () => void;
 }
 
 interface Props {
@@ -139,6 +142,7 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
   const kcRef = useRef<typeof import("klinecharts") | null>(null);
   const coachIdsRef = useRef<string[]>([]);
   const strategyIdsRef = useRef<string[]>([]);
+  const botTradeIdsRef = useRef<string[]>([]);
   const crosshairRef = useRef<{ time: number | null; price: number | null }>({
     time: null,
     price: null,
@@ -234,6 +238,13 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
     if (!chart) return;
     strategyIdsRef.current.forEach((id) => chart.removeOverlay(id));
     strategyIdsRef.current = [];
+  }
+
+  function clearBotTrades() {
+    const chart = chartRef.current;
+    if (!chart) return;
+    botTradeIdsRef.current.forEach((id) => chart.removeOverlay(id));
+    botTradeIdsRef.current = [];
   }
 
   useImperativeHandle(ref, () => ({
@@ -337,6 +348,37 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
       }
     },
     clearStrategy,
+    drawBotTrades: (trades) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      clearBotTrades();
+      // A small arrow + label where the bot actually bought / sold this symbol.
+      const anno = (timestamp: number, value: number, text: string, color: string) => {
+        const id = chart.createOverlay({
+          name: "simpleAnnotation",
+          points: [{ timestamp, value }],
+          extendData: text,
+          styles: { line: { color }, polygon: { color }, text: { color } },
+        } as never);
+        if (typeof id === "string") botTradeIdsRef.current.push(id);
+      };
+      for (const t of trades) {
+        if (t.symbol !== symbol) continue;
+        anno(t.opened_at * 1000, t.entry, `Bot bought ${fmtPrice(t.entry)}`, "#7C5CFF");
+        if (t.closed_at && t.pnl != null && t.qty > 0) {
+          const exit = t.entry + t.pnl / t.qty;
+          const pct = (t.pnl / (t.entry * t.qty)) * 100;
+          const sign = t.pnl >= 0 ? "+" : "";
+          anno(
+            t.closed_at * 1000,
+            exit,
+            `Bot sold ${sign}${pct.toFixed(1)}%`,
+            t.pnl >= 0 ? "#16C784" : "#EA3943"
+          );
+        }
+      }
+    },
+    clearBotTrades,
   }));
 
   // --- drawing tools + indicators --------------------------------------
