@@ -10,9 +10,8 @@ import { ChartCoachPopover, type PointContext } from "@/components/coach/ChartCo
 import { SlashAskBar } from "@/components/coach/SlashAskBar";
 import { ForecastView } from "@/components/forecast/ForecastView";
 import { GuidedTour } from "@/components/GuidedTour";
-import { InstrumentPicker } from "@/components/InstrumentPicker";
+import { InstrumentBar } from "@/components/InstrumentBar";
 import { OrderTicket } from "@/components/OrderTicket";
-import { PairTabs } from "@/components/PairTabs";
 import { PositionsList } from "@/components/PositionsList";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
 import { useQuote, useStrategyAnalysis } from "@/lib/api";
@@ -77,12 +76,12 @@ export default function TradePage() {
     <div className="flex h-full flex-col">
       <GuidedTour />
 
-      <PairTabs />
+      {/* One line for instruments: a pinned "+" to add, then your open tabs */}
+      <InstrumentBar />
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-3">
-          <InstrumentPicker />
           <ChartViewToggle />
           {chartView === "trade" && (
             <button

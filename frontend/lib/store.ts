@@ -102,9 +102,10 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           instrument,
           suggestedTrade: null,
+          // New picks land at the front; already-open ones stay put (no reordering).
           openInstruments: s.openInstruments.some((i) => i.symbol === instrument.symbol)
             ? s.openInstruments
-            : [...s.openInstruments, instrument],
+            : [instrument, ...s.openInstruments],
         })),
       closeInstrument: (symbol) =>
         set((s) => {
