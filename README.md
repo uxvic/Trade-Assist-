@@ -72,6 +72,22 @@ To enable the AI coach, open **Settings** in the app and paste an Anthropic
 (Claude) API key — no file editing required. Everything else (live charts,
 practice trading, lessons) works without a key.
 
+### Starting over (reset everything)
+
+To wipe all local data and come back as a brand-new user:
+
+```bash
+# Ctrl-C to stop the app first, then:
+./scripts/reset.sh
+```
+
+This deletes the local database (`backend/data/trade_assist.db`) — your login,
+every practice account, and all bot history — then restarts the app with empty
+tables. It **cannot be undone**, and no `./scripts/setup.sh` re-run is needed.
+After it restarts, open the app in a **private/incognito window** (or use
+**Settings → Sign out**) so the browser forgets your saved login too, and you'll
+land on the Sign-up screen like a new user.
+
 ### Useful extras
 
 ```bash

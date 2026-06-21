@@ -26,13 +26,15 @@ export default function SettingsPage() {
   const email = useEmailSettings();
   const setEmail = useSetEmail();
   const user = useAppStore((s) => s.user);
-  const clearAuth = useAppStore((s) => s.clearAuth);
+  const resetDevice = useAppStore((s) => s.resetDevice);
   const qc = useQueryClient();
 
   function signOut() {
     void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     qc.clear();
-    clearAuth();
+    // Full clean slate on this device: drops the saved login and the onboarding
+    // name/level, so the next sign-up starts fresh (login screen → onboarding).
+    resetDevice();
   }
 
   const [apiKey, setApiKey] = useState("");
@@ -234,7 +236,12 @@ export default function SettingsPage() {
               "Signed in."
             )}
           </p>
-          <Button variant="secondary" className="mt-4" onClick={signOut}>
+          <p className="mt-2 text-xs text-muted">
+            Signing out clears your login and saved setup on this device, so the
+            next sign-in starts fresh. Your account and practice history stay on
+            the server until you reset them.
+          </p>
+          <Button variant="secondary" className="mt-3" onClick={signOut}>
             <LogOut size={16} /> Sign out
           </Button>
         </CardContent>

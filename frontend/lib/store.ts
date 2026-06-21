@@ -55,6 +55,7 @@ interface AppState {
   setHydrated: () => void;
   setAuth: (token: string, user: AuthUser) => void;
   clearAuth: () => void;
+  resetDevice: () => void; // full sign-out: also clears onboarding/name so the next login feels brand new
   completeOnboarding: (name: string, level?: string) => void;
   resetOnboarding: () => void;
   setInstrument: (instrument: Instrument) => void;
@@ -102,6 +103,16 @@ export const useAppStore = create<AppState>()(
       setHydrated: () => set({ hasHydrated: true }),
       setAuth: (token, user) => set({ token, user }),
       clearAuth: () => set({ token: null, user: null }),
+      resetDevice: () =>
+        set({
+          token: null,
+          user: null,
+          onboarded: false,
+          name: "",
+          level: "rusty",
+          suggestedTrade: null,
+          coachIdea: null,
+        }),
       completeOnboarding: (name, level) =>
         set({ onboarded: true, name: name.trim() || "there", ...(level ? { level } : {}) }),
       resetOnboarding: () => set({ onboarded: false }),
