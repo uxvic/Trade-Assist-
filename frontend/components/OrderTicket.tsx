@@ -25,18 +25,23 @@ export function OrderTicket({
 }) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("100");
+  const [justFilled, setJustFilled] = useState(false);
   const { data: quote } = useQuote(assetClass, symbol);
   const place = usePlaceOrder();
 
   const suggested = useAppStore((s) => s.suggestedTrade);
   const suggestionForThis = suggested && (suggested.symbol ?? symbol) === symbol ? suggested : null;
 
-  // When the coach sends an idea (Suggestions mode), pre-fill the ticket.
+  // When an idea (Coach / Bot / Forecast) sends a suggestion, pre-fill the
+  // ticket and briefly flag it so the change is unmistakable — otherwise, when
+  // the suggested side/amount already match, "Place order" looks like a no-op.
   useEffect(() => {
-    if (suggestionForThis) {
-      if (suggestionForThis.side) setSide(suggestionForThis.side);
-      if (suggestionForThis.notional) setAmount(String(suggestionForThis.notional));
-    }
+    if (!suggestionForThis) return;
+    if (suggestionForThis.side) setSide(suggestionForThis.side);
+    if (suggestionForThis.notional) setAmount(String(suggestionForThis.notional));
+    setJustFilled(true);
+    const t = setTimeout(() => setJustFilled(false), 2500);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suggested, symbol]);
 
@@ -71,7 +76,18 @@ export function OrderTicket({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-xl transition-all",
+        justFilled && "ring-2 ring-primary/60 ring-offset-4 ring-offset-bg"
+      )}
+    >
+      {justFilled && (
+        <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+          Filled from your idea — review the side &amp; amount, then place it below.
+        </div>
+      )}
+
       {/* Buy / Sell toggle */}
       <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-2/40 p-1">
         <button

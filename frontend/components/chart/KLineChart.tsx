@@ -327,7 +327,9 @@ export const KLineChart = forwardRef<ChartHandle, Props>(function KLineChart(
           name: "simpleTag",
           points: [{ value }],
           extendData: text,
-          styles: { line: { color, size }, text: { color } },
+          // White label on the timeframe-coloured pill — the colour alone (e.g.
+          // purple/blue on the price axis) left the text unreadable.
+          styles: { line: { color, size }, text: { color: "#fff", backgroundColor: color } },
         } as never);
         if (typeof id === "string") strategyIdsRef.current.push(id);
       };

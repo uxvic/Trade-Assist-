@@ -25,7 +25,7 @@ export function IdeasPanel({ chartRef }: { chartRef: RefObject<ChartHandle> }) {
   return (
     <div className="rounded-xl border border-border bg-surface-2/30 p-2">
       <div className="flex gap-0.5 rounded-lg border border-border bg-surface-2/40 p-1">
-        <TabButton active={tab === "coach"} onClick={() => setTab("coach")} icon={Sparkles} label="Coach idea" />
+        <TabButton active={tab === "coach"} onClick={() => setTab("coach")} icon={Sparkles} label="Coach" />
         <TabButton active={tab === "bot"} onClick={() => setTab("bot")} icon={Bot} label="Bot plan" />
         <TabButton active={tab === "forecast"} onClick={() => setTab("forecast")} icon={LineChart} label="Forecast" />
       </div>
@@ -218,6 +218,9 @@ function ForecastTab() {
       symbol: instrument.symbol,
       asset_class: instrument.assetClass,
       side: up ? "buy" : "sell",
+      // The forecast doesn't size a trade — start the form at a standard
+      // practice amount so the ticket below visibly fills in (you can change it).
+      notional: 100,
       rationale: `Following the direction of the model's projection (${up ? "up" : "down"} to ~${fmtPrice(end)}).`,
       risk: `From a projection that's been right ${acc ?? "—"}% of the time — not a signal. You choose the size.`,
     });
@@ -270,7 +273,7 @@ function TabButton({
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium transition-colors",
         active ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"
       )}
     >

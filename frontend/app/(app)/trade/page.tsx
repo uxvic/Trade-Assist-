@@ -15,6 +15,7 @@ import { IdeasPanel } from "@/components/IdeasPanel";
 import { OrderTicket } from "@/components/OrderTicket";
 import { PositionsList } from "@/components/PositionsList";
 import { BotPlanOverlay } from "@/components/strategy/BotPlanOverlay";
+import { LevelLegend } from "@/components/strategy/LevelLegend";
 import { TimeframeSelector } from "@/components/TimeframeSelector";
 import { useBotTrades, useQuote, useStrategyAnalysis } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
@@ -130,6 +131,7 @@ export default function TradePage() {
                   }
                 />
                 <SlashAskBar chartRef={chartRef} ctx={ctxBase} />
+                {showBotPlan && <LevelLegend />}
                 <BotPlanOverlay />
                 {popover && (
                   <ChartCoachPopover
