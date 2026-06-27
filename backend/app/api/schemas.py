@@ -75,3 +75,9 @@ class ObserveRequest(BaseModel):
     timeframe: str = "1m"
     name: str = ""
     intensity: str = "reads"
+
+
+class AnalyzeRequest(BaseModel):
+    symbol: str
+    asset_class: str = "crypto"
+    timeframe: str = "1h"

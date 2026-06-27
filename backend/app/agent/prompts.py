@@ -126,6 +126,82 @@ def bot_commentary_message(symbol: str, asset_class: str, analysis, notes: list[
     )
 
 
+# --------------------------------------------------------------------------- #
+# Two-agent market-analysis pipeline: Analyst gathers evidence, Reviewer judges.
+# --------------------------------------------------------------------------- #
+ANALYST_SYSTEM = """\
+You are a market analyst on a trading desk. You are handed a deterministic, \
+rules-based read of a market (trend, key support/resistance levels, a signal and a \
+possible trade plan) plus live tools to check the latest quote and recent candles. \
+Produce a concise, structured ANALYSIS — evidence, not advice. Cover: the trend and \
+momentum, the key levels in play right now and how price is behaving around them, \
+the notable risks, and one or two plausible scenarios with rough invalidation. \
+Ground every claim in the data — use your tools to verify before asserting — and be \
+honest about uncertainty and data limits. Do NOT tell the user to buy or sell; a \
+reviewer will weigh your findings. A few tight paragraphs or short bullets."""
+
+REVIEWER_SYSTEM = """\
+You are a senior trader reviewing a junior analyst's findings before anything reaches \
+a learner. Stress-test the analyst: what is well-supported, what is weak or missing, \
+and what the single biggest risk is. Then give ONE clear, honest recommendation. \
+START your reply with a single verdict word — CONSIDER, WAIT, or AVOID — then 3-5 \
+short sentences: your reasoning, the key level or trigger to watch, and the main \
+risk. If the user has supplied their own TRADING RULES, judge the setup against those \
+rules and state plainly whether it meets them. This is education, not financial \
+advice, never a guarantee — the user places any trade themselves."""
+
+
+def _analysis_brief(symbol: str, asset_class: str, analysis) -> str:
+    t = analysis.trend
+    levels = ", ".join(
+        f"{lv.source_tf} {lv.type} {lv.price:.5g}" for lv in analysis.levels[:6]
+    ) or "none detected"
+    pt = analysis.proposed_trade
+    plan = (
+        f"BUY entry {pt.entry:.5g}, stop {pt.stop:.5g}, target {pt.target:.5g} (1:3)"
+        if pt
+        else f"no trade ({analysis.signal.reason})"
+    )
+    return (
+        f"Deterministic read of {symbol} ({asset_class}):\n"
+        f"- Trend: {t.direction} (confidence {t.confidence:.0%}). {'; '.join(t.reasons)}\n"
+        f"- Key levels: {levels}\n"
+        f"- Current price: {analysis.current_price:.5g}\n"
+        f"- Rules-bot plan: {plan}"
+    )
+
+
+def _rules_block(user_rules: str | None) -> str:
+    if not user_rules:
+        return ""
+    return (
+        "\n\nThe user's own TRADING RULES (judge the setup against these):\n"
+        f"{user_rules.strip()}\n"
+    )
+
+
+def analyst_message(symbol: str, asset_class: str, analysis, user_rules: str | None = None) -> str:
+    return (
+        f"{_analysis_brief(symbol, asset_class, analysis)}"
+        f"{_rules_block(user_rules)}\n\n"
+        "Analyse this market now. Check the latest quote and recent candles with your "
+        "tools, then lay out the trend, the key levels in play, the risks, and one or "
+        "two scenarios. Evidence only — no buy/sell directive."
+    )
+
+
+def reviewer_message(
+    symbol: str, asset_class: str, analysis, analyst_findings: str, user_rules: str | None = None
+) -> str:
+    return (
+        f"{_analysis_brief(symbol, asset_class, analysis)}"
+        f"{_rules_block(user_rules)}\n\n"
+        f'The analyst\'s findings:\n"""\n{analyst_findings.strip()}\n"""\n\n'
+        "Review these findings and give your verdict (start with CONSIDER, WAIT, or "
+        "AVOID) and recommendation."
+    )
+
+
 def observe_prompt(name: str, symbol: str, asset_class: str, timeframe: str) -> str:
     """The synthetic prompt for a proactive 'read' of what the user is viewing."""
     return (

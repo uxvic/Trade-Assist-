@@ -10,6 +10,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.auth.deps import CurrentUser
+from app.persistence.store import get_store
 from app.runtime import (
     ai_configured,
     email_configured,
@@ -78,3 +80,27 @@ async def set_email_settings(req: EmailSettingsRequest) -> EmailSettingsStatus:
         recipient=(req.recipient or "").strip() or None,
         digest=req.digest,
     )
+
+
+# Trading rules ARE per-user and persisted (unlike the in-memory AI/email keys):
+# they are non-secret content the user owns, and the analysis agents read them.
+class TradingRulesRequest(BaseModel):
+    rules_text: str = ""
+    use_rules: bool = False
+
+
+class TradingRulesStatus(BaseModel):
+    rules_text: str
+    use_rules: bool
+    updated_at: int
+
+
+@router.get("/rules", response_model=TradingRulesStatus)
+async def get_trading_rules(user_id: CurrentUser) -> TradingRulesStatus:
+    return TradingRulesStatus(**get_store().get_user_rules(user_id))
+
+
+@router.post("/rules", response_model=TradingRulesStatus)
+async def set_trading_rules(req: TradingRulesRequest, user_id: CurrentUser) -> TradingRulesStatus:
+    rec = get_store().save_user_rules(user_id, req.rules_text.strip(), req.use_rules)
+    return TradingRulesStatus(**rec)

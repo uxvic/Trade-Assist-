@@ -16,8 +16,9 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.agent.pipeline import run_market_analysis
 from app.agent.prompts import observe_prompt
-from app.api.schemas import ChatRequest, ObserveRequest
+from app.api.schemas import AnalyzeRequest, ChatRequest, ObserveRequest
 from app.auth.deps import CurrentUser
 from app.runtime import ai_configured, get_agent_service
 
@@ -32,15 +33,21 @@ def _require_ai() -> None:
         )
 
 
-def _sse(service, message, history):
+def _sse_events(events):
+    """Stream an async iterator of AgentEvents as Server-Sent Events."""
+
     async def event_stream():
         try:
-            async for event in service.run_turn(message, history):
+            async for event in events:
                 yield f"data: {json.dumps({'type': event.type, **event.data}, default=str)}\n\n"
         except Exception as exc:  # noqa: BLE001
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+def _sse(service, message, history):
+    return _sse_events(service.run_turn(message, history))
 
 
 @router.post("/chat")
@@ -55,3 +62,13 @@ async def observe(req: ObserveRequest, user_id: CurrentUser) -> StreamingRespons
     _require_ai()
     message = observe_prompt(req.name or req.symbol, req.symbol, req.asset_class, req.timeframe)
     return _sse(get_agent_service(user_id, intensity=req.intensity), message, None)
+
+
+@router.post("/analyze")
+async def analyze_market(req: AnalyzeRequest, user_id: CurrentUser) -> StreamingResponse:
+    """Two-stage pipeline: an Analyst studies the market → a Reviewer recommends.
+    Streams stage-tagged events; respects the user's trading rules if switched on."""
+    _require_ai()
+    return _sse_events(
+        run_market_analysis(user_id, req.symbol, req.asset_class, req.timeframe)
+    )

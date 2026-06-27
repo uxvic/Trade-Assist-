@@ -3,6 +3,7 @@
 import {
   BookOpen,
   Bot,
+  Brain,
   GraduationCap,
   Home,
   LineChart,
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/home", label: "Home", icon: Home },
   { href: "/trade", label: "Trade", icon: LineChart },
   { href: "/bot", label: "Bot", icon: Bot },
+  { href: "/agents", label: "Agents", icon: Brain },
   { href: "/learn", label: "Learn", icon: BookOpen },
   { href: "/coach", label: "Coach", icon: MessageCircle },
   { href: "/settings", label: "Settings", icon: Settings },

@@ -152,6 +152,26 @@ class Store:
         except sqlite3.Error:
             pass
 
+    # ---- user trading rules (snapshot-backed, per user) ---------------- #
+    def get_user_rules(self, user_id: int) -> dict:
+        """The user's own trading rules + whether they're switched on. Always
+        returns a dict (empty defaults if the user has never saved any)."""
+        snap = self.load_snapshot(f"rules:{user_id}") or {}
+        return {
+            "rules_text": str(snap.get("rules_text", "")),
+            "use_rules": bool(snap.get("use_rules", False)),
+            "updated_at": int(snap.get("updated_at", 0)),
+        }
+
+    def save_user_rules(self, user_id: int, rules_text: str, use_rules: bool) -> dict:
+        payload = {
+            "rules_text": rules_text,
+            "use_rules": bool(use_rules),
+            "updated_at": int(time.time()),
+        }
+        self.save_snapshot(f"rules:{user_id}", payload)
+        return payload
+
     # ---- events -------------------------------------------------------- #
     def append_event(
         self, ts: int, symbol: str, asset_class: str, kind: str, text: str, notify: bool

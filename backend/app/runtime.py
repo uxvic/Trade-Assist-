@@ -152,16 +152,33 @@ def get_data_provider(asset_class: str = "crypto") -> MarketDataProvider:
 
 
 def get_agent_service(
-    user_id: int, intensity: str | None = None, system: str | None = None
+    user_id: int,
+    intensity: str | None = None,
+    system: str | None = None,
+    model: str | None = None,
 ) -> AgentService:
     settings = get_settings()
+    provider = _active_provider()
+    # A caller can request a specific Claude tier (e.g. the reviewer uses Opus).
+    # Only honour it on the Claude path; LiteLLM users keep their configured model.
+    chosen_model = model if (model and provider == "claude") else settings.agent_model
     return build_agent_service(
-        provider=_active_provider(),
+        provider=provider,
         registry=get_tool_registry(user_id),
-        model=settings.agent_model,
+        model=chosen_model,
         api_key=_ai_override["api_key"] or settings.anthropic_api_key,
         system=system or coach_system_prompt(intensity or "reads"),
     )
+
+
+def get_user_rules_text(user_id: int) -> str | None:
+    """The user's trading rules IF they've switched on 'use my rules', else None.
+    Fed into the analysis agents' prompts so recommendations respect them."""
+    from app.persistence.store import get_store
+
+    rec = get_store().get_user_rules(user_id)
+    text = (rec.get("rules_text") or "").strip()
+    return text if (rec.get("use_rules") and text) else None
 
 
 # --------------------------------------------------------------------------- #

@@ -582,6 +582,34 @@ export function useSetEmail() {
 }
 
 // ---------------------------------------------------------------------------
+// Trading rules (the user's own method; shapes the analysis agents)
+// ---------------------------------------------------------------------------
+export interface TradingRules {
+  rules_text: string;
+  use_rules: boolean;
+  updated_at: number;
+}
+
+export function useTradingRules() {
+  return useQuery({
+    queryKey: ["trading-rules"],
+    queryFn: () => http<TradingRules>("/api/settings/rules"),
+  });
+}
+
+export function useSaveTradingRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { rules_text: string; use_rules: boolean }) =>
+      http<TradingRules>("/api/settings/rules", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["trading-rules"] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Coach streaming (SSE)
 // ---------------------------------------------------------------------------
 export interface TradeProposal {
@@ -598,11 +626,16 @@ export interface TradeProposal {
 }
 
 export interface AgentEvent {
-  type: "text" | "tool_call" | "tool_result" | "done" | "error" | "no_key";
+  type: "text" | "tool_call" | "tool_result" | "done" | "error" | "no_key" | "stage";
   text?: string;
   name?: string;
   message?: string;
   input?: Record<string, unknown>;
+  // Market-analysis pipeline extras:
+  stage?: "analyst" | "reviewer"; // which agent this event belongs to
+  label?: string; // human label carried on a "stage" event
+  verdict?: "CONSIDER" | "WAIT" | "AVOID" | null; // reviewer's call (on final "done")
+  used_rules?: boolean; // whether the user's own rules shaped the result
   [k: string]: unknown;
 }
 
@@ -681,6 +714,21 @@ export function streamObserve(ctx: ObserveContext, signal?: AbortSignal): AsyncG
       name: ctx.name,
       intensity: ctx.intensity,
     },
+    signal
+  );
+}
+
+/** Two-agent pipeline: Analyst studies the market → Reviewer recommends. Events
+ *  are tagged with a `stage` ("analyst" | "reviewer"). */
+export function streamMarketAnalysis(
+  symbol: string,
+  assetClass: string,
+  timeframe: string,
+  signal?: AbortSignal
+): AsyncGenerator<AgentEvent> {
+  return _streamSSE(
+    "/api/agent/analyze",
+    { symbol, asset_class: assetClass, timeframe },
     signal
   );
 }

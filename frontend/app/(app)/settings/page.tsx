@@ -1,8 +1,8 @@
 "use client";
 
-import { Bell, Check, KeyRound, LogOut, RefreshCw, Sparkles } from "lucide-react";
+import { Bell, Check, KeyRound, LogOut, RefreshCw, ScrollText, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,13 @@ import {
   useAISettings,
   useEmailSettings,
   useResetAccount,
+  useSaveTradingRules,
   useSetAIKey,
   useSetEmail,
+  useTradingRules,
 } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const ai = useAISettings();
@@ -25,6 +28,8 @@ export default function SettingsPage() {
   const resetOnboarding = useAppStore((s) => s.resetOnboarding);
   const email = useEmailSettings();
   const setEmail = useSetEmail();
+  const rules = useTradingRules();
+  const saveRules = useSaveTradingRules();
   const user = useAppStore((s) => s.user);
   const resetDevice = useAppStore((s) => s.resetDevice);
   const qc = useQueryClient();
@@ -40,6 +45,31 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [emailKey, setEmailKey] = useState("");
   const [recipient, setRecipient] = useState("");
+
+  // Trading rules: seed the editor from the server once, then it's user-controlled.
+  const [rulesText, setRulesText] = useState("");
+  const [useRules, setUseRules] = useState(false);
+  const [rulesLoaded, setRulesLoaded] = useState(false);
+  useEffect(() => {
+    if (rules.data && !rulesLoaded) {
+      setRulesText(rules.data.rules_text);
+      setUseRules(rules.data.use_rules);
+      setRulesLoaded(true);
+    }
+  }, [rules.data, rulesLoaded]);
+
+  function saveTradingRules() {
+    saveRules.mutate(
+      { rules_text: rulesText.trim(), use_rules: useRules },
+      {
+        onSuccess: (s) =>
+          toast.success(
+            s.use_rules ? "Saved — the agents will follow your rules." : "Saved."
+          ),
+        onError: (e) => toast.error("Couldn't save", { description: (e as Error).message }),
+      }
+    );
+  }
 
   function saveEmail() {
     if (!emailKey.trim() || !recipient.trim()) {
@@ -123,6 +153,72 @@ export default function SettingsPage() {
                   <KeyRound size={16} /> {setKey.isPending ? "Saving…" : "Save"}
                 </Button>
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Trading rules */}
+      <Card className="mt-4">
+        <CardContent>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+              <ScrollText size={20} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-fg">Trading rules</h3>
+                {rules.data?.use_rules && rules.data.rules_text.trim() ? (
+                  <Badge variant="positive">
+                    <Check size={12} /> Active
+                  </Badge>
+                ) : (
+                  <Badge>Agent&apos;s own</Badge>
+                )}
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-muted">
+                Write your own trading method in plain English. When switched on, the
+                market-analysis agents judge each setup against your rules — you still place
+                every trade yourself.
+              </p>
+
+              <textarea
+                value={rulesText}
+                onChange={(e) => setRulesText(e.target.value)}
+                rows={6}
+                placeholder={
+                  "e.g. Only buy in a clear uptrend.\n" +
+                  "Enter on a 30m close above resistance, with the previous candle bullish.\n" +
+                  "Stop below the breakout candle; target 1:3.\n" +
+                  "No trades during high-impact news; exit by end of day."
+                }
+                className="mt-4 w-full rounded-lg border border-border bg-surface-2/40 p-3 text-sm leading-relaxed text-fg placeholder:text-muted focus:border-primary/40 focus:outline-none"
+              />
+
+              <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-2/40 p-1">
+                <button
+                  onClick={() => setUseRules(true)}
+                  className={cn(
+                    "rounded-lg py-2 text-sm font-medium transition-colors",
+                    useRules ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"
+                  )}
+                >
+                  Use my rules
+                </button>
+                <button
+                  onClick={() => setUseRules(false)}
+                  className={cn(
+                    "rounded-lg py-2 text-sm font-medium transition-colors",
+                    !useRules ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"
+                  )}
+                >
+                  Use the agent&apos;s
+                </button>
+              </div>
+
+              <Button className="mt-3" onClick={saveTradingRules} disabled={saveRules.isPending}>
+                <ScrollText size={16} /> {saveRules.isPending ? "Saving…" : "Save rules"}
+              </Button>
             </div>
           </div>
         </CardContent>

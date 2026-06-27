@@ -1,6 +1,7 @@
 "use client";
 
-import { Bot, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
@@ -95,6 +96,13 @@ export default function TradePage() {
               <Bot size={13} /> Bot plan
             </button>
           )}
+          <Link
+            href="/agents"
+            title="Send two AI agents to analyze this market"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/40 px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:text-fg"
+          >
+            <Brain size={13} /> Agent analysis
+          </Link>
         </div>
         <div className="flex items-center gap-3">
           {quote.data && (
