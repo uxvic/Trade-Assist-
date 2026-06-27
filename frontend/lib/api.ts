@@ -636,6 +636,7 @@ export interface AgentEvent {
   label?: string; // human label carried on a "stage" event
   verdict?: "CONSIDER" | "WAIT" | "AVOID" | null; // reviewer's call (on final "done")
   used_rules?: boolean; // whether the user's own rules shaped the result
+  usage?: { input_tokens: number; output_tokens: number }; // cumulative token use (on "done")
   [k: string]: unknown;
 }
 

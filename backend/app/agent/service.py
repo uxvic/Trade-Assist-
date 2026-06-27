@@ -72,6 +72,7 @@ class ClaudeAgentRunner(AgentService):
         messages: list[dict] = list(history or [])
         messages.append({"role": "user", "content": user_message})
         tools = self.registry.to_anthropic()
+        usage = {"input_tokens": 0, "output_tokens": 0}
 
         for _ in range(self.max_iterations):
             resp = await client.messages.create(
@@ -81,6 +82,9 @@ class ClaudeAgentRunner(AgentService):
                 max_tokens=self.max_tokens,
                 messages=messages,
             )
+            if getattr(resp, "usage", None):
+                usage["input_tokens"] += getattr(resp.usage, "input_tokens", 0) or 0
+                usage["output_tokens"] += getattr(resp.usage, "output_tokens", 0) or 0
             tool_uses = []
             for block in resp.content:
                 if block.type == "text":
@@ -92,7 +96,7 @@ class ClaudeAgentRunner(AgentService):
             messages.append({"role": "assistant", "content": resp.content})
 
             if resp.stop_reason != "tool_use":
-                yield AgentEvent("done", {"stop_reason": resp.stop_reason})
+                yield AgentEvent("done", {"stop_reason": resp.stop_reason, "usage": usage})
                 return
 
             tool_results = []
@@ -104,7 +108,7 @@ class ClaudeAgentRunner(AgentService):
                 )
             messages.append({"role": "user", "content": tool_results})
 
-        yield AgentEvent("done", {"stop_reason": "max_iterations"})
+        yield AgentEvent("done", {"stop_reason": "max_iterations", "usage": usage})
 
 
 class LiteLLMRunner(AgentService):

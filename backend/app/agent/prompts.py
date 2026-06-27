@@ -147,8 +147,13 @@ and what the single biggest risk is. Then give ONE clear, honest recommendation.
 START your reply with a single verdict word — CONSIDER, WAIT, or AVOID — then 3-5 \
 short sentences: your reasoning, the key level or trigger to watch, and the main \
 risk. If the user has supplied their own TRADING RULES, judge the setup against those \
-rules and state plainly whether it meets them. This is education, not financial \
-advice, never a guarantee — the user places any trade themselves."""
+rules and state plainly whether it meets them.
+
+If — and ONLY if — your verdict is CONSIDER, also CALL the propose_trade tool with \
+concrete side / entry / stop / target, a one-line rationale and the key risk, so the \
+user can review it and place it in one tap. For WAIT or AVOID, do not propose a trade. \
+This is education, not financial advice, never a guarantee — the user places any trade \
+themselves."""
 
 
 def _analysis_brief(symbol: str, asset_class: str, analysis) -> str:
@@ -180,9 +185,20 @@ def _rules_block(user_rules: str | None) -> str:
     )
 
 
-def analyst_message(symbol: str, asset_class: str, analysis, user_rules: str | None = None) -> str:
+def _focus(timeframe: str | None) -> str:
+    return f"\nThe user is focused on the {timeframe} chart." if timeframe else ""
+
+
+def analyst_message(
+    symbol: str,
+    asset_class: str,
+    analysis,
+    user_rules: str | None = None,
+    timeframe: str | None = None,
+) -> str:
     return (
         f"{_analysis_brief(symbol, asset_class, analysis)}"
+        f"{_focus(timeframe)}"
         f"{_rules_block(user_rules)}\n\n"
         "Analyse this market now. Check the latest quote and recent candles with your "
         "tools, then lay out the trend, the key levels in play, the risks, and one or "
@@ -191,10 +207,16 @@ def analyst_message(symbol: str, asset_class: str, analysis, user_rules: str | N
 
 
 def reviewer_message(
-    symbol: str, asset_class: str, analysis, analyst_findings: str, user_rules: str | None = None
+    symbol: str,
+    asset_class: str,
+    analysis,
+    analyst_findings: str,
+    user_rules: str | None = None,
+    timeframe: str | None = None,
 ) -> str:
     return (
         f"{_analysis_brief(symbol, asset_class, analysis)}"
+        f"{_focus(timeframe)}"
         f"{_rules_block(user_rules)}\n\n"
         f'The analyst\'s findings:\n"""\n{analyst_findings.strip()}\n"""\n\n'
         "Review these findings and give your verdict (start with CONSIDER, WAIT, or "

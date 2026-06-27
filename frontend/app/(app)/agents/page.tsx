@@ -1,9 +1,9 @@
 "use client";
 
-import { Brain, Loader2, ScrollText, ShieldCheck, Sparkles } from "lucide-react";
+import { Activity, Brain, Loader2, ScrollText, ShieldCheck, Sparkles, Square } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { TOOL_LABELS } from "@/components/coach/useCoachStream";
@@ -13,8 +13,10 @@ import {
   type TradeProposal,
   streamMarketAnalysis,
   useAISettings,
+  useStrategyAnalysis,
   useTradingRules,
 } from "@/lib/api";
+import { fmtPrice } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +36,7 @@ export default function AgentsPage() {
   const router = useRouter();
   const ai = useAISettings();
   const rules = useTradingRules();
+  const strategy = useStrategyAnalysis(instrument.assetClass, instrument.symbol);
 
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState<Stage | null>(null);
@@ -42,13 +45,23 @@ export default function AgentsPage() {
   const [tools, setTools] = useState<Record<Stage, string[]>>({ analyst: [], reviewer: [] });
   const [verdict, setVerdict] = useState<Verdict>(null);
   const [usedRules, setUsedRules] = useState(false);
+  const [usage, setUsage] = useState<{ input_tokens: number; output_tokens: number } | null>(null);
   const [proposal, setProposal] = useState<TradeProposal | null>(null);
-  const [noKey, setNoKey] = useState(false);
   const [ran, setRan] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Cancel any in-flight stream when leaving the page (don't leak the server run).
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const rulesActive = !!rules.data?.use_rules && !!rules.data?.rules_text.trim();
   const configured = ai.data?.configured;
+  const sd = strategy.data && strategy.data.symbol === instrument.symbol ? strategy.data : null;
+
+  function stop() {
+    abortRef.current?.abort();
+    setBusy(false);
+    setActive(null);
+  }
 
   async function run() {
     abortRef.current?.abort();
@@ -56,12 +69,12 @@ export default function AgentsPage() {
     abortRef.current = ac;
     setBusy(true);
     setRan(true);
-    setNoKey(false);
     setAnalyst("");
     setReviewer("");
     setTools({ analyst: [], reviewer: [] });
     setVerdict(null);
     setUsedRules(false);
+    setUsage(null);
     setProposal(null);
     setActive("analyst");
 
@@ -74,7 +87,7 @@ export default function AgentsPage() {
         ac.signal
       )) {
         if (ev.type === "no_key") {
-          setNoKey(true);
+          toast.error("Add an AI key in Settings to run the agents.");
           break;
         }
         if (ev.type === "stage" && ev.stage) {
@@ -83,10 +96,10 @@ export default function AgentsPage() {
           continue;
         }
         const stage: Stage = (ev.stage as Stage) ?? curStage;
+        const append = stage === "reviewer" ? setReviewer : setAnalyst;
         if (ev.type === "text" && ev.text) {
           const t = ev.text;
-          if (stage === "reviewer") setReviewer((o) => o + t);
-          else setAnalyst((o) => o + t);
+          append((o) => o + t);
         } else if (ev.type === "tool_call" && ev.name) {
           const name = ev.name;
           setTools((prev) =>
@@ -96,12 +109,16 @@ export default function AgentsPage() {
         } else if (ev.type === "done") {
           if ("verdict" in ev) setVerdict((ev.verdict as Verdict) ?? null);
           if (ev.used_rules) setUsedRules(true);
+          if (ev.usage) setUsage(ev.usage);
         } else if (ev.type === "error") {
-          setReviewer((o) => o + `\n\n⚠️ ${ev.message ?? "Something went wrong."}`);
+          append((o) => o + `\n\n⚠️ ${ev.message ?? "Something went wrong."}`);
         }
       }
     } catch (e) {
-      setReviewer((o) => o + `\n\n⚠️ ${(e as Error).message}`);
+      // A user-initiated abort is not an error.
+      if ((e as Error).name !== "AbortError") {
+        setReviewer((o) => o + `\n\n⚠️ ${(e as Error).message}`);
+      }
     } finally {
       setBusy(false);
       setActive(null);
@@ -116,6 +133,14 @@ export default function AgentsPage() {
     });
     router.push("/trade");
   }
+
+  const trendCls = sd
+    ? sd.trend.direction === "up"
+      ? "bg-positive/15 text-positive"
+      : sd.trend.direction === "down"
+        ? "bg-negative/15 text-negative"
+        : "bg-surface-2/60 text-muted"
+    : "";
 
   return (
     <div className="flex h-full flex-col">
@@ -135,42 +160,61 @@ export default function AgentsPage() {
                 recommendation. Educational — not financial advice.
               </p>
             </div>
-            <Button onClick={run} disabled={busy || !configured} size="lg">
-              {busy ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" /> Analyzing…
-                </>
-              ) : ran ? (
-                "Re-run analysis"
-              ) : (
-                `Analyze ${instrument.ticker}`
-              )}
-            </Button>
-          </div>
-
-          {/* Rules indicator */}
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <ScrollText size={13} className="text-muted" />
-            {rulesActive ? (
-              <span className="text-fg">
-                Using <span className="font-medium">your trading rules</span>.{" "}
-                <Link href="/settings" className="text-primary hover:underline">
-                  Edit
-                </Link>
-              </span>
+            {busy ? (
+              <Button onClick={stop} size="lg" variant="secondary">
+                <Square size={14} /> Stop
+              </Button>
             ) : (
-              <span className="text-muted">
-                Using the agent&apos;s own method.{" "}
-                <Link href="/settings" className="text-primary hover:underline">
-                  Add your trading rules
-                </Link>{" "}
-                to have it follow yours.
-              </span>
+              <Button onClick={run} disabled={ai.isLoading || !configured} size="lg">
+                {ran ? "Re-run analysis" : `Analyze ${instrument.ticker}`}
+              </Button>
             )}
           </div>
 
-          {/* No-key state */}
-          {(!configured || noKey) && (
+          {/* Rules indicator (only once we know the answer — no loading flash) */}
+          {rules.data && (
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <ScrollText size={13} className="text-muted" />
+              {rulesActive ? (
+                <span className="text-fg">
+                  Using <span className="font-medium">your trading rules</span>.{" "}
+                  <Link href="/settings" className="text-primary hover:underline">
+                    Edit
+                  </Link>
+                </span>
+              ) : (
+                <span className="text-muted">
+                  Using the agent&apos;s own method.{" "}
+                  <Link href="/settings" className="text-primary hover:underline">
+                    Add your trading rules
+                  </Link>{" "}
+                  to have it follow yours.
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* What the deterministic engine sees — grounds the agents (free, polled) */}
+          {sd && (
+            <div className="mt-4 rounded-xl border border-border bg-surface-2/30 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+                <Activity size={13} className="text-muted" /> What the engine sees
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                <span className={cn("rounded px-1.5 py-0.5 font-medium capitalize", trendCls)}>
+                  {sd.trend.direction} {(sd.trend.confidence * 100).toFixed(0)}%
+                </span>
+                <span className="text-muted">· {sd.levels.length} key levels</span>
+                <span className="text-muted">
+                  · {sd.signal.state === "buy" ? "buy setup" : "standing down"}
+                </span>
+                <span className="ml-auto tabular text-muted">{fmtPrice(sd.current_price)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* No-key state — only once we know there's no key (not while loading) */}
+          {ai.data && !configured && (
             <div className="mt-4 rounded-xl border border-border bg-surface-2/40 p-4">
               <div className="flex items-center gap-2 text-sm font-medium text-fg">
                 <Sparkles size={15} className="text-primary" /> Wake up your agents
@@ -186,7 +230,7 @@ export default function AgentsPage() {
           )}
 
           {/* Results */}
-          {ran && configured && !noKey && (
+          {ran && configured && (
             <div className="mt-5 space-y-4">
               <StageCard
                 title="Analyst"
@@ -232,6 +276,13 @@ export default function AgentsPage() {
                   </>
                 }
               />
+
+              {usage && !busy && (
+                <p className="text-center text-[11px] text-muted">
+                  Used ~{(usage.input_tokens + usage.output_tokens).toLocaleString()} tokens · the
+                  Reviewer runs on a deeper, costlier model.
+                </p>
+              )}
             </div>
           )}
 
@@ -271,7 +322,7 @@ function StageCard({
   return (
     <div className="rounded-xl border border-border bg-surface/70 p-4">
       <div className="flex items-center gap-2">
-        <span className={cn("flex items-center gap-1.5 text-sm font-semibold text-fg")}>
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
           <span className={accent}>{icon}</span>
           {title}
         </span>

@@ -100,7 +100,11 @@ async def get_trading_rules(user_id: CurrentUser) -> TradingRulesStatus:
     return TradingRulesStatus(**get_store().get_user_rules(user_id))
 
 
+_MAX_RULES_CHARS = 4000  # bound storage + shrink the prompt-injection surface
+
+
 @router.post("/rules", response_model=TradingRulesStatus)
 async def set_trading_rules(req: TradingRulesRequest, user_id: CurrentUser) -> TradingRulesStatus:
-    rec = get_store().save_user_rules(user_id, req.rules_text.strip(), req.use_rules)
+    text = req.rules_text.strip()[:_MAX_RULES_CHARS]
+    rec = get_store().save_user_rules(user_id, text, req.use_rules)
     return TradingRulesStatus(**rec)

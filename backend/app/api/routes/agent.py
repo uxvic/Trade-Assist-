@@ -64,11 +64,35 @@ async def observe(req: ObserveRequest, user_id: CurrentUser) -> StreamingRespons
     return _sse(get_agent_service(user_id, intensity=req.intensity), message, None)
 
 
+_SUPPORTED_ASSET_CLASSES = {"crypto", "forex"}
+# One analysis per user at a time — a two-model (Sonnet+Opus) run is expensive, so
+# the server, not just the disabled button, refuses concurrent/hammered requests.
+_analyses_in_flight: set[int] = set()
+
+
 @router.post("/analyze")
 async def analyze_market(req: AnalyzeRequest, user_id: CurrentUser) -> StreamingResponse:
     """Two-stage pipeline: an Analyst studies the market → a Reviewer recommends.
     Streams stage-tagged events; respects the user's trading rules if switched on."""
     _require_ai()
-    return _sse_events(
-        run_market_analysis(user_id, req.symbol, req.asset_class, req.timeframe)
-    )
+    symbol = (req.symbol or "").strip()
+    if not symbol:
+        raise HTTPException(status_code=422, detail="Provide a symbol to analyze.")
+    if req.asset_class not in _SUPPORTED_ASSET_CLASSES:
+        raise HTTPException(
+            status_code=422, detail=f"Unsupported asset class: {req.asset_class!r}."
+        )
+    if user_id in _analyses_in_flight:
+        raise HTTPException(
+            status_code=429, detail="An analysis is already running — let it finish first."
+        )
+    _analyses_in_flight.add(user_id)
+
+    async def gen():
+        try:
+            async for ev in run_market_analysis(user_id, symbol, req.asset_class, req.timeframe):
+                yield ev
+        finally:
+            _analyses_in_flight.discard(user_id)
+
+    return _sse_events(gen())

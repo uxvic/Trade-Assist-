@@ -64,7 +64,9 @@ export default function SettingsPage() {
       {
         onSuccess: (s) =>
           toast.success(
-            s.use_rules ? "Saved — the agents will follow your rules." : "Saved."
+            s.use_rules && s.rules_text.trim()
+              ? "Saved — the agents will follow your rules."
+              : "Saved."
           ),
         onError: (e) => toast.error("Couldn't save", { description: (e as Error).message }),
       }

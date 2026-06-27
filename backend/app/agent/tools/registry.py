@@ -303,3 +303,130 @@ def build_default_registry(broker: BrokerInterface) -> ToolRegistry:
     )
 
     return registry
+
+
+def build_analysis_registry(asset_class: str) -> ToolRegistry:
+    """A read-only registry for the market-analysis agents (Analyst/Reviewer).
+
+    Recommend-only **by construction**: it has no order-placing tool, so the
+    pipeline can never touch any account. The data tools are pre-bound to the
+    instrument's ``asset_class`` so the model cannot accidentally fetch crypto
+    data while analysing a forex pair (it can't pass the wrong ``asset_class``).
+    ``propose_trade`` is included — it only *suggests* (never executes), letting
+    the Reviewer hand the user a fillable entry/stop/target.
+    """
+    registry = ToolRegistry()
+    provider = get_provider(asset_class)
+
+    async def get_quote(args: dict) -> dict:
+        q = await provider.get_quote(args["symbol"])
+        return {"symbol": q.symbol, "last": str(q.last), "bid": str(q.bid), "ask": str(q.ask)}
+
+    registry.register(
+        Tool(
+            name="get_quote",
+            description=f"Get the latest price (last/bid/ask) for a {asset_class} symbol.",
+            parameters={
+                "type": "object",
+                "properties": {"symbol": {"type": "string", "description": "Ticker symbol"}},
+                "required": ["symbol"],
+            },
+            handler=get_quote,
+        )
+    )
+
+    async def get_chart(args: dict) -> dict:
+        tf = Timeframe(args.get("timeframe", "1h"))
+        candles = await provider.get_candles(args["symbol"], tf, int(args.get("limit", 80)))
+        return {
+            "symbol": args["symbol"],
+            "timeframe": tf.value,
+            "candles": [
+                {
+                    "ts": c.ts.isoformat(),
+                    "o": str(c.open),
+                    "h": str(c.high),
+                    "l": str(c.low),
+                    "c": str(c.close),
+                    "v": str(c.volume),
+                }
+                for c in candles
+            ],
+        }
+
+    registry.register(
+        Tool(
+            name="get_chart",
+            description="Get recent OHLCV candles for the symbol to reason about price action.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                    "timeframe": {
+                        "type": "string",
+                        "enum": [tf.value for tf in Timeframe],
+                        "default": "1h",
+                    },
+                    "limit": {"type": "integer", "default": 80, "maximum": 200},
+                },
+                "required": ["symbol"],
+            },
+            handler=get_chart,
+        )
+    )
+
+    async def explain_concept(args: dict) -> dict:
+        return {
+            "concept": args.get("concept", ""),
+            "note": "Explain from first principles in beginner-friendly terms.",
+        }
+
+    registry.register(
+        Tool(
+            name="explain_concept",
+            description="Retrieve grounded teaching material for a trading concept.",
+            parameters={
+                "type": "object",
+                "properties": {"concept": {"type": "string"}},
+                "required": ["concept"],
+            },
+            handler=explain_concept,
+        )
+    )
+
+    async def propose_trade(args: dict) -> dict:
+        keys = [
+            "symbol", "asset_class", "side", "notional",
+            "entry", "stop", "target", "leverage", "rationale", "risk",
+        ]
+        return {"proposal": {k: args.get(k) for k in keys}}
+
+    registry.register(
+        Tool(
+            name="propose_trade",
+            description=(
+                "Suggest a complete trade for the user to review (entry/stop/target/side). Does "
+                "NOT execute — the user taps to confirm in their order form. Include a rationale "
+                "and the key risk."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                    "asset_class": {"type": "string"},
+                    "side": {"type": "string", "enum": ["buy", "sell"]},
+                    "notional": {"type": "number", "description": "Suggested size in dollars"},
+                    "entry": {"type": "number"},
+                    "stop": {"type": "number"},
+                    "target": {"type": "number"},
+                    "leverage": {"type": "number"},
+                    "rationale": {"type": "string"},
+                    "risk": {"type": "string"},
+                },
+                "required": ["symbol", "side", "rationale"],
+            },
+            handler=propose_trade,
+        )
+    )
+
+    return registry
